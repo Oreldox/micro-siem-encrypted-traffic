@@ -58,15 +58,6 @@ st.markdown("""
     .metric-card .value.red { color: #ef4444; }
     .metric-card .value.blue { color: #3b82f6; }
     .metric-card .value.yellow { color: #f59e0b; }
-    .alert-row {
-        padding: 8px 12px;
-        border-left: 4px solid;
-        margin-bottom: 4px;
-        border-radius: 0 4px 4px 0;
-    }
-    .alert-high { border-color: #ef4444; background: rgba(239,68,68,0.1); }
-    .alert-medium { border-color: #f59e0b; background: rgba(245,158,11,0.1); }
-    .alert-low { border-color: #10b981; background: rgba(16,185,129,0.1); }
     .sidebar-title {
         font-size: 1.5rem;
         font-weight: 700;
@@ -95,8 +86,22 @@ st.markdown("""
         color: #94a3b8;
         font-size: 1rem;
     }
+    .explain-box {
+        background: rgba(59, 130, 246, 0.08);
+        border-left: 3px solid #3b82f6;
+        border-radius: 0 8px 8px 0;
+        padding: 12px 16px;
+        margin: 8px 0 16px 0;
+        font-size: 0.9rem;
+        color: #cbd5e1;
+    }
 </style>
 """, unsafe_allow_html=True)
+
+
+def explain(text):
+    """Affiche un bloc d'explication contextuel."""
+    st.markdown(f'<div class="explain-box">{text}</div>', unsafe_allow_html=True)
 
 
 # === CHARGEMENT MODELES ET MAPPINGS ===
@@ -151,17 +156,6 @@ def load_shap_explainer(_model):
     return shap.TreeExplainer(_model)
 
 
-def detect_input_type(df, session_features, packet_features):
-    """Detecte automatiquement si le CSV est session-based ou packet-based."""
-    session_match = sum(1 for f in session_features if f in df.columns)
-    packet_match = sum(1 for f in packet_features if f in df.columns)
-    if session_match >= 20:
-        return "session"
-    elif packet_match >= 15:
-        return "packet"
-    return "unknown"
-
-
 def render_metric_card(title, value, color="blue"):
     """Affiche une carte metrique stylisee."""
     st.markdown(f"""
@@ -178,7 +172,8 @@ def page_overview(models, session_features, config):
     st.markdown("""
     <div class="hero-banner">
         <h1>Micro-SIEM &mdash; Classification du trafic chiffre</h1>
-        <p>Importez un CSV de sessions reseau ou chargez les donnees de demonstration pour lancer l'analyse.</p>
+        <p>Cet outil analyse des sessions reseau et detecte le trafic malveillant (C2, exfiltration, ransomware)
+        a partir des metadonnees de connexion, <strong>sans dechiffrer le contenu</strong>.</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -186,13 +181,13 @@ def page_overview(models, session_features, config):
     col_upload, col_demo = st.columns([3, 1])
     with col_upload:
         uploaded = st.file_uploader(
-            "Importer un fichier CSV (sessions reseau)",
+            "Importer un fichier CSV de sessions reseau",
             type=["csv"],
-            help="Format attendu : CSV avec les 27 features session-based et optionnellement la colonne 'label'"
+            help="CSV avec les 27 features session-based. Colonne 'label' optionnelle (0=benin, 1=malveillant)."
         )
     with col_demo:
         st.markdown("<br>", unsafe_allow_html=True)
-        load_demo = st.button("Charger donnees de demonstration",
+        load_demo = st.button("Charger la demo (5 000 sessions)",
                               use_container_width=True,
                               type="primary")
 
@@ -205,25 +200,36 @@ def page_overview(models, session_features, config):
         if os.path.exists(DEMO_DATA_PATH):
             df = pd.read_csv(DEMO_DATA_PATH, low_memory=False)
             st.session_state["data"] = df
-            st.session_state["data_source"] = "Donnees de demonstration (5 000 sessions du testset)"
+            st.session_state["data_source"] = "Demonstration : 5 000 sessions du dataset CIC-Darknet2020"
         else:
             st.error("Fichier de demonstration introuvable.")
             return
 
     if "data" not in st.session_state:
-        st.info("Importez un fichier CSV ou chargez les donnees de demonstration pour commencer l'analyse.")
+        st.markdown("---")
+        st.markdown("### Comment ca marche ?")
+        st.markdown("""
+        1. **Importez un CSV** de sessions reseau (ou cliquez sur "Charger la demo")
+        2. Le modele **Random Forest** (99.5% accuracy) analyse chaque session
+        3. Les sessions suspectes sont signalees avec leur **probabilite de malveillance**
+        4. Explorez les alertes dans les autres onglets (SHAP, configuration du seuil, statistiques)
+        """)
 
-        # Afficher les infos sur les modeles charges
-        st.subheader("Modeles disponibles")
+        st.markdown("### Modeles pre-charges")
         _, model_info = load_models()
         cols = st.columns(3)
+        descriptions = [
+            "Classification principale — analyse les 27 features de chaque session",
+            "Utilisee pour expliquer les predictions (SHAP waterfall)",
+            "Detection non supervisee — signale les sessions anormales"
+        ]
         for i, (name, size, status) in enumerate(model_info):
             with cols[i]:
                 icon = "Charge" if status == "Charge" else "Non trouve"
                 color = "green" if status == "Charge" else "red"
                 render_metric_card(name, icon, color)
                 if size != "-":
-                    st.caption(f"Taille : {size}")
+                    st.caption(descriptions[i])
         return
 
     df = st.session_state["data"]
@@ -232,7 +238,7 @@ def page_overview(models, session_features, config):
 
     # --- Predictions ---
     if "rf_session" not in models:
-        st.error("Modele Random Forest non disponible. Verifiez que models/model_random_forest.joblib existe.")
+        st.error("Modele Random Forest non disponible.")
         return
 
     missing = [f for f in session_features if f not in df.columns]
@@ -254,7 +260,6 @@ def page_overview(models, session_features, config):
         if_raw = models["isolation_forest"].predict(X)
         if_preds = (if_raw == -1).astype(int)
         if_scores = models["isolation_forest"].decision_function(X)
-        # Combine : alerte si RF OU IF
         preds_combined = ((preds == 1) | (if_preds == 1)).astype(int)
     else:
         preds_combined = preds
@@ -276,57 +281,82 @@ def page_overview(models, session_features, config):
     n_total = len(df)
     n_alerts = preds_combined.sum()
     n_high = (probas >= 0.8).sum()
-    avg_proba = probas.mean()
+    n_benign = n_total - n_alerts
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         render_metric_card("Sessions analysees", f"{n_total:,}", "blue")
     with col2:
-        render_metric_card("Alertes", f"{n_alerts:,}", "red" if n_alerts > 0 else "green")
+        render_metric_card("Sessions benignes", f"{n_benign:,}", "green")
     with col3:
-        render_metric_card("Alertes critiques", f"{n_high:,}", "yellow")
+        render_metric_card("Alertes (suspectes)", f"{n_alerts:,}", "red" if n_alerts > 0 else "green")
     with col4:
-        render_metric_card("Probabilite moyenne", f"{avg_proba:.3f}", "blue")
+        render_metric_card("Alertes critiques (P>0.8)", f"{n_high:,}", "yellow")
+
+    explain(
+        f"Le modele a analyse <strong>{n_total:,} sessions</strong> reseau. "
+        f"Parmi elles, <strong>{n_alerts:,}</strong> ont une probabilite de malveillance "
+        f"superieure au seuil de <strong>{threshold}</strong> (configurable dans l'onglet Configuration). "
+        f"Les alertes critiques sont celles avec une probabilite > 0.8."
+    )
 
     # --- Distribution des probabilites ---
-    st.subheader("Distribution des probabilites de classification")
+    st.subheader("Distribution des probabilites")
     import plotly.graph_objects as go
 
-    fig = go.Figure()
-    fig.add_trace(go.Histogram(
-        x=probas, nbinsx=50, name="Toutes les sessions",
-        marker_color="#3b82f6", opacity=0.7
-    ))
+    if has_labels:
+        fig = go.Figure()
+        fig.add_trace(go.Histogram(
+            x=probas[y_true == 0], nbinsx=50, name="Sessions benignes (label=0)",
+            marker_color="#3b82f6", opacity=0.6
+        ))
+        fig.add_trace(go.Histogram(
+            x=probas[y_true == 1], nbinsx=50, name="Sessions malveillantes (label=1)",
+            marker_color="#ef4444", opacity=0.6
+        ))
+        fig.update_layout(barmode="overlay")
+    else:
+        fig = go.Figure()
+        fig.add_trace(go.Histogram(
+            x=probas, nbinsx=50, name="Toutes les sessions",
+            marker_color="#3b82f6", opacity=0.7
+        ))
+
     fig.add_vline(x=threshold, line_dash="dash", line_color="red",
                   annotation_text=f"Seuil = {threshold}")
     fig.update_layout(
-        xaxis_title="P(malveillant)", yaxis_title="Nombre de sessions",
+        xaxis_title="Probabilite de malveillance (0 = benin, 1 = malveillant)",
+        yaxis_title="Nombre de sessions",
         template="plotly_dark", height=350, margin=dict(t=30, b=30)
     )
     st.plotly_chart(fig, use_container_width=True)
 
+    explain(
+        "Chaque session recoit un <strong>score entre 0 et 1</strong>. "
+        "Un score proche de 0 = probablement benin. Proche de 1 = probablement malveillant. "
+        "La ligne rouge verticale est le seuil de decision : tout ce qui est a droite est signale comme alerte. "
+        "Un bon modele separe bien les deux groupes (pics distincts a gauche et a droite)."
+    )
+
     # --- Table des sessions a risque ---
-    st.subheader("Sessions a risque")
+    st.subheader("Top 100 des sessions les plus suspectes")
 
     df_display = df.copy()
     df_display["probabilite"] = probas
-    df_display["verdict"] = np.where(preds_combined == 1, "MALVEILLANT", "Benin")
+    df_display["verdict"] = np.where(preds_combined == 1, "SUSPECT", "Benin")
     if if_preds is not None:
-        df_display["alerte_IF"] = np.where(if_preds == 1, "Anomalie", "-")
+        df_display["anomalie_IF"] = np.where(if_preds == 1, "OUI", "-")
     if has_labels:
-        df_display["label_reel"] = np.where(y_true == 1, "Malveillant", "Benin")
+        df_display["verite_terrain"] = np.where(y_true == 1, "Malveillant", "Benin")
 
-    # Filtrer les colonnes affichees
     display_cols = ["probabilite", "verdict"]
     if if_preds is not None:
-        display_cols.append("alerte_IF")
+        display_cols.append("anomalie_IF")
     if has_labels:
-        display_cols.append("label_reel")
-    # Ajouter quelques features importantes
+        display_cols.append("verite_terrain")
     top_features = session_features[:5]
     display_cols.extend([f for f in top_features if f in df_display.columns])
 
-    # Trier par probabilite decroissante
     df_sorted = df_display[display_cols].sort_values("probabilite", ascending=False)
 
     st.dataframe(
@@ -337,14 +367,22 @@ def page_overview(models, session_features, config):
         height=400
     )
 
+    explain(
+        "Ce tableau montre les 100 sessions avec la probabilite de malveillance la plus elevee. "
+        "La colonne <strong>probabilite</strong> est coloree du vert (benin) au rouge (malveillant). "
+        "Si les donnees contiennent des labels, la colonne <strong>verite terrain</strong> montre "
+        "la vraie nature de la session pour verifier les predictions."
+    )
+
 
 # === PAGE 2 : ANALYSE DETAILLEE ===
 
 def page_detail(models, session_features, config):
     st.header("Analyse detaillee d'une session")
+    st.markdown("Selectionnez une session pour comprendre **pourquoi** le modele la considere comme suspecte ou benigne.")
 
     if "data" not in st.session_state or "probas" not in st.session_state:
-        st.warning("Importez et analysez d'abord des donnees dans la **Vue d'ensemble**.")
+        st.warning("Chargez d'abord des donnees dans **Vue d'ensemble** (cliquez sur 'Charger la demo').")
         return
 
     df = st.session_state["data"]
@@ -353,50 +391,58 @@ def page_detail(models, session_features, config):
     X = st.session_state["X"]
 
     # --- Selection de session ---
+    st.markdown("---")
     n = len(df)
     col_select, col_filter = st.columns([2, 1])
     with col_filter:
-        filter_type = st.radio("Filtrer", ["Toutes", "Alertes uniquement", "Top suspectes"],
+        filter_type = st.radio("Filtrer par", ["Toutes", "Alertes uniquement", "Top 50 suspectes"],
                                horizontal=True)
     with col_select:
         if filter_type == "Alertes uniquement":
             alert_indices = np.where(preds == 1)[0]
             if len(alert_indices) == 0:
-                st.info("Aucune alerte avec le seuil actuel.")
+                st.info("Aucune alerte avec le seuil actuel. Baissez le seuil dans Configuration.")
                 return
-            idx = st.selectbox("Session", alert_indices,
-                               format_func=lambda i: f"Session {i} (P={probas[i]:.4f})")
-        elif filter_type == "Top suspectes":
+            idx = st.selectbox("Choisir une session", alert_indices,
+                               format_func=lambda i: f"Session {i} — probabilite {probas[i]:.4f}")
+        elif filter_type == "Top 50 suspectes":
             top_indices = np.argsort(probas)[::-1][:50]
-            idx = st.selectbox("Session", top_indices,
-                               format_func=lambda i: f"Session {i} (P={probas[i]:.4f})")
+            idx = st.selectbox("Choisir une session", top_indices,
+                               format_func=lambda i: f"Session {i} — probabilite {probas[i]:.4f}")
         else:
             idx = st.number_input("Index de session", min_value=0, max_value=n-1, value=0)
 
     # --- Verdict ---
     proba = probas[idx]
-    verdict = "MALVEILLANT" if preds[idx] == 1 else "Benin"
+    verdict = "SUSPECT" if preds[idx] == 1 else "Benin"
 
     col_v1, col_v2, col_v3 = st.columns(3)
     with col_v1:
         color = "red" if proba >= 0.5 else ("yellow" if proba >= 0.3 else "green")
-        render_metric_card("Probabilite", f"{proba:.4f}", color)
+        render_metric_card("Probabilite de malveillance", f"{proba:.4f}", color)
     with col_v2:
-        render_metric_card("Verdict", verdict, "red" if verdict == "MALVEILLANT" else "green")
+        render_metric_card("Verdict du modele", verdict, "red" if verdict == "SUSPECT" else "green")
     with col_v3:
         if "y_true" in st.session_state:
             label = "Malveillant" if st.session_state["y_true"][idx] == 1 else "Benin"
             correct = (st.session_state["y_true"][idx] == preds[idx])
-            render_metric_card("Label reel", label, "green" if correct else "red")
+            render_metric_card("Verite terrain", label, "green" if correct else "red")
         else:
-            render_metric_card("Label reel", "Non disponible", "blue")
+            render_metric_card("Verite terrain", "Non disponible", "blue")
 
-    st.divider()
+    st.markdown("---")
 
     # --- SHAP explanation ---
     if "xgboost" in models:
-        st.subheader("Explication SHAP")
-        st.caption("Contribution de chaque feature a la prediction (rouge = pousse vers malveillant)")
+        st.subheader("Pourquoi cette prediction ? (Explication SHAP)")
+
+        explain(
+            "<strong>SHAP</strong> decompose la prediction en contributions de chaque feature. "
+            "Chaque barre montre l'influence d'une caracteristique sur la decision : "
+            "<span style='color:#ef4444'>en rouge</span> = pousse vers 'malveillant', "
+            "<span style='color:#3b82f6'>en bleu</span> = pousse vers 'benin'. "
+            "Les features en haut sont celles qui ont le plus d'impact sur cette session."
+        )
 
         try:
             import shap
@@ -420,23 +466,31 @@ def page_detail(models, session_features, config):
         except Exception as e:
             st.warning(f"Erreur SHAP : {e}")
     else:
-        st.info("Modele XGBoost non disponible pour l'explication SHAP.")
+        st.info("Modele XGBoost non disponible pour les explications SHAP.")
+
+    st.markdown("---")
 
     # --- Comparaison feature values ---
-    st.subheader("Valeurs des features")
-    st.caption("Comparaison avec les moyennes du dataset — Z-score : ecart par rapport a la normale")
+    st.subheader("Valeurs des features de cette session")
+
+    explain(
+        "Ce tableau compare les valeurs de la session selectionnee avec la moyenne du dataset. "
+        "Le <strong>Z-score</strong> mesure l'ecart par rapport a la normale : "
+        "un Z-score > 2 (rouge) signifie que la valeur est anormalement elevee, "
+        "< -2 (bleu) = anormalement basse. "
+        "C'est un indicateur de ce qui rend cette session differente des autres."
+    )
 
     feature_vals = X[idx]
     mean_all = X.mean(axis=0)
     std_all = X.std(axis=0)
 
-    # Z-score par rapport a la moyenne
     z_scores = np.where(std_all > 0, (feature_vals - mean_all) / std_all, 0)
 
     df_features = pd.DataFrame({
         "Feature": session_features,
-        "Valeur": feature_vals,
-        "Moyenne": mean_all,
+        "Valeur (cette session)": feature_vals,
+        "Moyenne (dataset)": mean_all,
         "Ecart-type": std_all,
         "Z-score": z_scores
     }).sort_values("Z-score", key=abs, ascending=False)
@@ -444,7 +498,12 @@ def page_detail(models, session_features, config):
     st.dataframe(
         df_features.style.background_gradient(
             subset=["Z-score"], cmap="RdBu_r", vmin=-3, vmax=3
-        ).format({"Valeur": "{:.4f}", "Moyenne": "{:.4f}", "Ecart-type": "{:.4f}", "Z-score": "{:.2f}"}),
+        ).format({
+            "Valeur (cette session)": "{:.4f}",
+            "Moyenne (dataset)": "{:.4f}",
+            "Ecart-type": "{:.4f}",
+            "Z-score": "{:.2f}"
+        }),
         use_container_width=True,
         height=500
     )
@@ -454,14 +513,22 @@ def page_detail(models, session_features, config):
 
 def page_config(config):
     st.header("Configuration de la detection")
+    st.markdown("Ajustez les parametres de detection et observez l'impact en temps reel.")
 
+    st.markdown("---")
     st.subheader("Seuil de decision")
-    st.caption("Les sessions avec P(malveillant) >= seuil seront signalees comme alertes.")
+
+    explain(
+        "Le seuil determine a partir de quelle probabilite une session est consideree suspecte. "
+        "<strong>Seuil bas</strong> (ex: 0.3) = plus d'alertes, moins de malwares rates, "
+        "mais plus de fausses alertes. "
+        "<strong>Seuil haut</strong> (ex: 0.7) = moins d'alertes, mais risque de rater des menaces. "
+        "Le seuil par defaut (0.5) est un compromis raisonnable."
+    )
 
     threshold = st.slider(
         "Seuil de detection",
         min_value=0.0, max_value=1.0, value=config["threshold"], step=0.01,
-        help="Baisser le seuil detecte plus de menaces mais genere plus de faux positifs"
     )
 
     # Afficher l'impact en temps reel
@@ -483,18 +550,36 @@ def page_config(config):
             from sklearn.metrics import confusion_matrix as cm
             tn, fp, fn, tp = cm(y_true, preds_t).ravel()
 
-            st.subheader("Impact sur les metriques (ground truth disponible)")
+            st.markdown("---")
+            st.subheader("Impact sur les erreurs")
+
+            explain(
+                "<strong>Vrais positifs (TP)</strong> = malwares correctement detectes. "
+                "<strong>Faux positifs (FP)</strong> = sessions benignes alertees par erreur. "
+                "<strong>Faux negatifs (FN)</strong> = malwares rates (le plus dangereux). "
+                "<strong>Vrais negatifs (TN)</strong> = sessions benignes correctement ignorees."
+            )
+
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                render_metric_card("Vrais positifs", f"{tp:,}", "green")
+                render_metric_card("Vrais positifs (TP)", f"{tp:,}", "green")
             with col2:
-                render_metric_card("Faux positifs", f"{fp:,}", "yellow")
+                render_metric_card("Faux positifs (FP)", f"{fp:,}", "yellow")
             with col3:
-                render_metric_card("Faux negatifs", f"{fn:,}", "red")
+                render_metric_card("Faux negatifs (FN)", f"{fn:,}", "red")
             with col4:
-                render_metric_card("Vrais negatifs", f"{tn:,}", "green")
+                render_metric_card("Vrais negatifs (TN)", f"{tn:,}", "green")
 
             # Courbe FN/FP par seuil
+            st.markdown("---")
+            st.subheader("Compromis FN / FP en fonction du seuil")
+
+            explain(
+                "Ce graphique montre comment le nombre de faux negatifs (menaces ratees, en rouge) "
+                "et de faux positifs (fausses alertes, en orange) evolue quand vous deplacez le seuil. "
+                "L'objectif est de trouver le point ou les deux courbes sont au plus bas."
+            )
+
             import plotly.graph_objects as go
             thresholds_range = np.arange(0.05, 0.95, 0.05)
             fns, fps = [], []
@@ -505,29 +590,36 @@ def page_config(config):
                 fps.append(fp_t)
 
             fig = go.Figure()
-            fig.add_trace(go.Scatter(x=thresholds_range, y=fns, name="Faux negatifs",
-                                     line=dict(color="#ef4444", width=2)))
-            fig.add_trace(go.Scatter(x=thresholds_range, y=fps, name="Faux positifs",
-                                     line=dict(color="#f59e0b", width=2)))
+            fig.add_trace(go.Scatter(x=thresholds_range, y=fns,
+                                     name="Faux negatifs (menaces ratees)",
+                                     line=dict(color="#ef4444", width=2.5)))
+            fig.add_trace(go.Scatter(x=thresholds_range, y=fps,
+                                     name="Faux positifs (fausses alertes)",
+                                     line=dict(color="#f59e0b", width=2.5)))
             fig.add_vline(x=threshold, line_dash="dash", line_color="white",
                           annotation_text=f"Seuil actuel = {threshold}")
             fig.update_layout(
-                xaxis_title="Seuil de decision", yaxis_title="Nombre d'erreurs",
-                template="plotly_dark", height=350,
+                xaxis_title="Seuil de decision",
+                yaxis_title="Nombre d'erreurs",
+                template="plotly_dark", height=400,
                 margin=dict(t=30, b=30)
             )
             st.plotly_chart(fig, use_container_width=True)
 
-    st.divider()
+    st.markdown("---")
 
-    st.subheader("Isolation Forest")
-    use_if = st.toggle(
-        "Activer la detection d'anomalies (Isolation Forest)",
-        value=config["use_if"],
-        help="L'IF detecte les sessions anormales en complement du RF. Alerte si RF OU IF detecte."
+    st.subheader("Isolation Forest (detection d'anomalies)")
+
+    explain(
+        "L'Isolation Forest est un modele <strong>non supervise</strong> : il a appris ce qu'est "
+        "du trafic normal sans jamais voir de malware. Il detecte les sessions qui s'ecartent de la norme. "
+        "Si active, une session est alertee si le Random Forest <strong>ou</strong> l'IF la signale."
     )
-    if use_if:
-        st.caption("Mode actif : une session est alertee si le RF **ou** l'IF la signale.")
+
+    use_if = st.toggle(
+        "Activer l'Isolation Forest en complement du Random Forest",
+        value=config["use_if"],
+    )
 
     return {"threshold": threshold, "use_if": use_if}
 
@@ -535,10 +627,11 @@ def page_config(config):
 # === PAGE 4 : STATISTIQUES ===
 
 def page_stats(models, session_features, config):
-    st.header("Statistiques")
+    st.header("Statistiques du modele")
+    st.markdown("Performance globale du modele sur les donnees chargees.")
 
     if "probas" not in st.session_state:
-        st.warning("Importez et analysez d'abord des donnees dans la **Vue d'ensemble**.")
+        st.warning("Chargez d'abord des donnees dans **Vue d'ensemble** (cliquez sur 'Charger la demo').")
         return
 
     import plotly.graph_objects as go
@@ -563,6 +656,11 @@ def page_stats(models, session_features, config):
 
         with col1:
             st.subheader("Matrice de confusion")
+            explain(
+                "La matrice montre les 4 cas possibles : predictions correctes (diagonale) "
+                "et erreurs (hors diagonale). <strong>TN</strong> et <strong>TP</strong> = le modele a raison. "
+                "<strong>FP</strong> = fausse alerte. <strong>FN</strong> = menace ratee."
+            )
 
             z = [[tn, fp], [fn, tp]]
             text = [[f"TN<br>{tn:,}", f"FP<br>{fp:,}"],
@@ -579,41 +677,63 @@ def page_stats(models, session_features, config):
 
         with col2:
             st.subheader("Metriques de performance")
+            explain(
+                "<strong>Accuracy</strong> = % global de bonnes reponses. "
+                "<strong>Precision</strong> = parmi les alertes, combien sont de vrais malwares. "
+                "<strong>Recall</strong> = parmi les vrais malwares, combien sont detectes. "
+                "<strong>F1</strong> = equilibre entre precision et recall."
+            )
             render_metric_card("Accuracy", f"{100*acc:.2f}%", "blue")
             render_metric_card("Precision", f"{100*prec:.2f}%", "green")
             render_metric_card("Recall", f"{100*rec:.2f}%", "yellow")
             render_metric_card("F1-score", f"{f1:.4f}", "blue")
 
-        st.divider()
+        st.markdown("---")
 
         # --- Courbe ROC ---
         st.subheader("Courbe ROC")
+        explain(
+            "La courbe ROC montre la capacite du modele a distinguer benin vs malveillant "
+            "a differents seuils. Plus la courbe est proche du coin superieur gauche, meilleur est le modele. "
+            "L'<strong>AUC</strong> (aire sous la courbe) vaut 1.0 pour un modele parfait et 0.5 pour un modele aleatoire."
+        )
+
         fpr, tpr, _ = roc_curve(y_true, probas)
         roc_auc = auc(fpr, tpr)
 
         fig_roc = go.Figure()
         fig_roc.add_trace(go.Scatter(
-            x=fpr, y=tpr, mode="lines", name=f"RF (AUC = {roc_auc:.4f})",
+            x=fpr, y=tpr, mode="lines", name=f"Random Forest (AUC = {roc_auc:.4f})",
             line=dict(color="#3b82f6", width=2.5)
         ))
         fig_roc.add_trace(go.Scatter(
-            x=[0, 1], y=[0, 1], mode="lines", name="Aleatoire",
+            x=[0, 1], y=[0, 1], mode="lines", name="Modele aleatoire (AUC = 0.5)",
             line=dict(color="gray", dash="dash")
         ))
         fig_roc.update_layout(
             xaxis_title="Taux de faux positifs (FPR)",
-            yaxis_title="Taux de vrais positifs (TPR)",
+            yaxis_title="Taux de vrais positifs (TPR / Recall)",
             template="plotly_dark", height=400, margin=dict(t=30)
         )
         st.plotly_chart(fig_roc, use_container_width=True)
 
     else:
-        st.info("Les metriques de performance ne sont disponibles que si le CSV contient une colonne 'label' (0=benin, 1=malveillant).")
+        st.info(
+            "Les metriques de performance ne sont disponibles que si le CSV "
+            "contient une colonne **label** (0=benin, 1=malveillant). "
+            "Les donnees de demonstration incluent cette colonne."
+        )
 
-    st.divider()
+    st.markdown("---")
 
     # --- Feature importance ---
-    st.subheader("Importance des features (Random Forest)")
+    st.subheader("Importance des features")
+    explain(
+        "Ce graphique montre les 15 features les plus influentes dans les decisions du modele. "
+        "L'importance est calculee par le critere de <strong>Gini</strong> : "
+        "plus une feature est utilisee par le modele pour separer benin/malveillant, plus elle est importante."
+    )
+
     if "rf_session" in models:
         model_rf = models["rf_session"]
         if hasattr(model_rf, "feature_importances_"):
@@ -634,19 +754,28 @@ def page_stats(models, session_features, config):
 
     # --- Scores IF ---
     if st.session_state.get("if_scores") is not None:
-        st.divider()
-        st.subheader("Distribution des scores d'anomalie (Isolation Forest)")
+        st.markdown("---")
+        st.subheader("Scores d'anomalie (Isolation Forest)")
+
+        explain(
+            "L'IF attribue un <strong>score d'anomalie</strong> a chaque session. "
+            "Un score negatif = la session est consideree anormale. "
+            "Ce graphique superpose les distributions des scores pour les sessions benignes (bleu) "
+            "et malveillantes (rouge). Si les deux histogrammes se chevauchent beaucoup, "
+            "cela signifie que l'IF a du mal a les distinguer sur ces features."
+        )
+
         if_scores = st.session_state["if_scores"]
 
         fig_if = go.Figure()
         if "y_true" in st.session_state:
             y_true = st.session_state["y_true"]
             fig_if.add_trace(go.Histogram(
-                x=if_scores[y_true == 0], nbinsx=50, name="Benin",
+                x=if_scores[y_true == 0], nbinsx=50, name="Sessions benignes",
                 marker_color="#3b82f6", opacity=0.6
             ))
             fig_if.add_trace(go.Histogram(
-                x=if_scores[y_true == 1], nbinsx=50, name="Malveillant",
+                x=if_scores[y_true == 1], nbinsx=50, name="Sessions malveillantes",
                 marker_color="#ef4444", opacity=0.6
             ))
         else:
@@ -658,7 +787,7 @@ def page_stats(models, session_features, config):
         fig_if.add_vline(x=0, line_dash="dash", line_color="white",
                          annotation_text="Seuil IF (score=0)")
         fig_if.update_layout(
-            xaxis_title="Score d'anomalie (negatif = anormal)",
+            xaxis_title="Score d'anomalie (negatif = session anormale)",
             yaxis_title="Nombre de sessions",
             barmode="overlay", template="plotly_dark", height=350,
             margin=dict(t=30, b=30)
@@ -669,45 +798,57 @@ def page_stats(models, session_features, config):
 # === PAGE A PROPOS ===
 
 def page_about():
-    st.header("A propos")
+    st.header("A propos de cet outil")
 
     st.markdown("""
-    ### Micro-SIEM — Classification du trafic reseau chiffre
+    ### Qu'est-ce que c'est ?
 
-    Ce dashboard est un outil de demonstration issu d'un projet d'analyse de trafic reseau chiffre.
-    Il permet de classifier des sessions reseau comme benignes ou malveillantes a l'aide de modeles
-    de Machine Learning pre-entraines.
+    Ce dashboard est un **Micro-SIEM** (Security Information and Event Management) specialise
+    dans la detection de trafic reseau malveillant **chiffre**. Il analyse les metadonnees des
+    sessions reseau (duree, volume, timing, nombre de paquets) sans avoir besoin de dechiffrer
+    le contenu.
 
-    #### Modeles utilises
+    ### Pourquoi c'est utile ?
+
+    Avec plus de 90% du trafic web chiffre en TLS/SSL, les outils classiques d'inspection
+    de contenu (DPI) sont aveugles. Ce dashboard utilise le **Machine Learning** pour
+    detecter des comportements suspects (C2, exfiltration, ransomware) a partir des
+    caracteristiques statistiques des connexions.
+
+    ---
+
+    ### Modeles utilises
 
     | Modele | Role | Performance |
     |--------|------|-------------|
-    | **Random Forest** | Classification principale (session-based) | F1 = 0.9950, Accuracy = 99.50% |
-    | **XGBoost** | Explications SHAP (TreeExplainer) | F1 = 0.9898 |
-    | **Isolation Forest** | Detection d'anomalies non supervisee | Precision = 94.7% (c=0.01) |
+    | **Random Forest** | Classification principale (27 features) | **F1 = 0.9950** (99.5% accuracy) |
+    | **XGBoost** | Explications SHAP par session | F1 = 0.9898 |
+    | **Isolation Forest** | Detection d'anomalies non supervisee | Precision = 94.7% |
 
-    #### Pipeline d'analyse
+    ### Donnees d'entrainement
 
-    Le projet complet comprend 5 axes :
-    1. **Analyse packet-based** — Random Forest sur les paquets individuels (99.98%)
-    2. **Comparaison d'algorithmes** — RF, XGBoost, MLP sur les sessions
-    3. **Interpretabilite** — SHAP global et local
-    4. **Visualisation** — t-SNE, UMAP, clustering K-Means des malwares
+    - **Dataset** : CIC-Darknet2020 (244 000 sessions d'entrainement, 122 000 de test)
+    - **Features** : 27 caracteristiques de session selectionnees par importance (Gini + Cohen's d)
+    - **Labels** : 0 = trafic benin, 1 = trafic malveillant (Tor, VPN malveillant)
+
+    ---
+
+    ### Pipeline d'analyse complet
+
+    Ce dashboard est l'aboutissement d'un projet en 5 axes :
+    1. **Analyse packet-based** — Classification par paquets individuels (99.98% accuracy)
+    2. **Comparaison d'algorithmes** — Random Forest vs XGBoost vs MLP
+    3. **Interpretabilite** — SHAP : comprendre pourquoi le modele decide
+    4. **Visualisation** — t-SNE, UMAP, clustering K-Means des familles de malwares
     5. **Detection d'anomalies** — Isolation Forest non supervise
 
-    #### Donnees
-
-    - **Dataset** : CIC-Darknet2020 (sessions TCP/UDP, 244K train / 122K test)
-    - **Features** : 27 features session-based selectionnees par importance (Gini)
-    - **Labels** : 0 = benin, 1 = malveillant (trafic Tor/VPN)
-
-    #### Technologies
+    ### Technologies
 
     Streamlit, scikit-learn, XGBoost, SHAP, Plotly, pandas, NumPy, Matplotlib
     """)
 
-    st.divider()
-    st.caption("Projet realise dans le cadre d'une analyse de cybersecurite.")
+    st.markdown("---")
+    st.caption("Projet realise par Loris Dietrich — Analyse de cybersecurite")
 
 
 # === MAIN ===
@@ -735,8 +876,10 @@ def main():
     # Config rapide dans la sidebar
     st.sidebar.subheader("Parametres rapides")
     threshold = st.sidebar.slider("Seuil de detection", 0.0, 1.0, 0.5, 0.01,
-                                  key="sidebar_threshold")
-    use_if = st.sidebar.toggle("Isolation Forest", False, key="sidebar_if")
+                                  key="sidebar_threshold",
+                                  help="Sessions avec P(malveillant) >= seuil = alerte")
+    use_if = st.sidebar.toggle("Isolation Forest", False, key="sidebar_if",
+                               help="Activer la detection d'anomalies non supervisee")
 
     config = {"threshold": threshold, "use_if": use_if}
 
@@ -749,7 +892,7 @@ def main():
         st.sidebar.caption(f"{icon} {name} ({size})")
 
     st.sidebar.divider()
-    st.sidebar.caption("Micro-SIEM | Analyse de trafic chiffre")
+    st.sidebar.caption("Micro-SIEM | Loris Dietrich")
 
     # --- Pages ---
     if page == "Vue d'ensemble":
