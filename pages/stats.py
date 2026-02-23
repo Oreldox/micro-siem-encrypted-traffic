@@ -13,8 +13,8 @@ def render(models, session_features, config):
     st.header("Statistiques du modele")
     st.markdown("Performance globale du modele sur les donnees chargees.")
 
-    if "probas" not in st.session_state:
-        st.warning("Chargez d'abord des donnees dans **Vue d'ensemble** (cliquez sur 'Charger la demo').")
+    from src.ui_components import require_data
+    if not require_data("Matrice de confusion, courbe ROC, feature importance."):
         return
 
     probas = st.session_state["probas"]

@@ -25,8 +25,8 @@ def render(models, session_features, packet_features, config):
     )
 
     # Verifier que des donnees session sont chargees
-    if "probas" not in st.session_state or "data" not in st.session_state:
-        st.warning("Chargez d'abord des donnees dans **Vue d'ensemble** (cliquez sur 'Charger la demo').")
+    from src.ui_components import require_data
+    if not require_data("Le mode cascade affine les predictions pour les sessions incertaines."):
         return
 
     probas = st.session_state["probas"]

@@ -1,8 +1,11 @@
 """
-Composants UI partagés : CSS, cartes métriques, blocs d'explication.
+Composants UI partagés : CSS, cartes métriques, blocs d'explication, chargement données.
 """
 
+import os
 import streamlit as st
+import pandas as pd
+import numpy as np
 
 
 def inject_css():
@@ -87,3 +90,57 @@ def render_metric_card(title, value, color="blue"):
         <div class="value {color}">{value}</div>
     </div>
     """, unsafe_allow_html=True)
+
+
+def load_demo_data():
+    """Charge les donnees de demo dans session_state et lance les predictions."""
+    from src.models import DEMO_DATA_PATH, load_models, load_feature_mapping, SESSION_MAPPING_PATH
+
+    if not os.path.exists(DEMO_DATA_PATH):
+        st.error("Fichier de demonstration introuvable.")
+        return False
+
+    df = pd.read_csv(DEMO_DATA_PATH, low_memory=False)
+    st.session_state["data"] = df
+    st.session_state["data_source"] = "Demo : 5 000 sessions CIC-Darknet2020"
+
+    # Lancer les predictions immediatement
+    models, _ = load_models()
+    session_features = load_feature_mapping(SESSION_MAPPING_PATH)
+
+    if "rf_session" in models:
+        X = np.nan_to_num(df[session_features].values.astype(float), nan=0.0)
+        probas = models["rf_session"].predict_proba(X)[:, 1]
+        preds = (probas >= 0.5).astype(int)
+
+        st.session_state["probas"] = probas
+        st.session_state["preds"] = preds
+        st.session_state["preds_rf"] = preds
+        st.session_state["if_preds"] = None
+        st.session_state["if_scores"] = None
+        st.session_state["X"] = X
+
+        if "label" in df.columns:
+            st.session_state["y_true"] = df["label"].values.astype(int)
+
+    return True
+
+
+def require_data(page_description=""):
+    """Verifie que des donnees sont chargees. Si non, affiche un bouton demo.
+
+    Retourne True si des donnees sont disponibles, False sinon.
+    """
+    if "probas" in st.session_state and "data" in st.session_state:
+        return True
+
+    st.markdown("---")
+    st.markdown(f"### Aucune donnee chargee")
+    if page_description:
+        st.markdown(page_description)
+    st.markdown("Chargez les donnees de demonstration pour explorer cette page :")
+    if st.button("Charger les donnees de demo (5 000 sessions)", type="primary",
+                  use_container_width=True, key=f"demo_btn_{page_description[:20]}"):
+        if load_demo_data():
+            st.rerun()
+    return False

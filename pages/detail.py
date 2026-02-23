@@ -14,8 +14,8 @@ def render(models, session_features, config):
     st.header("Analyse detaillee d'une session")
     st.markdown("Selectionnez une session pour comprendre **pourquoi** le modele la considere comme suspecte ou benigne.")
 
-    if "data" not in st.session_state or "probas" not in st.session_state:
-        st.warning("Chargez d'abord des donnees dans **Vue d'ensemble** (cliquez sur 'Charger la demo').")
+    from src.ui_components import require_data
+    if not require_data("Selectionnez une session pour voir l'explication SHAP de sa classification."):
         return
 
     df = st.session_state["data"]

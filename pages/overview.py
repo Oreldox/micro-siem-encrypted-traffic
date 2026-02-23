@@ -1,5 +1,5 @@
 """
-Page 1 : Vue d'ensemble — Import CSV/PCAP, classification, metriques, table des alertes.
+Page 1 : Vue d'ensemble — Landing page, import CSV/PCAP, classification, metriques, alertes.
 """
 
 import os
@@ -8,69 +8,205 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 
-from src.ui_components import explain, render_metric_card
+from src.ui_components import explain, render_metric_card, load_demo_data
 from src.models import DEMO_DATA_PATH
 
 
 def render(models, session_features, config):
+    # Si aucune donnee, afficher la landing page
+    if "data" not in st.session_state or "probas" not in st.session_state:
+        _render_landing_page()
+        return
+
+    # Sinon, afficher les resultats d'analyse
+    _render_analysis(models, session_features, config)
+
+
+# =============================================================================
+# LANDING PAGE
+# =============================================================================
+
+def _render_landing_page():
+    """Page d'accueil quand aucune donnee n'est chargee."""
+
     st.markdown("""
     <div class="hero-banner">
-        <h1>Micro-SIEM &mdash; Classification du trafic chiffre</h1>
-        <p>Cet outil analyse des sessions reseau et detecte le trafic malveillant (C2, exfiltration, ransomware)
+        <h1>Micro-SIEM &mdash; Trafic Chiffre</h1>
+        <p>Detectez le trafic reseau malveillant (C2, exfiltration, ransomware)
         a partir des metadonnees de connexion, <strong>sans dechiffrer le contenu</strong>.</p>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Upload ou demo ---
-    col_upload, col_demo = st.columns([3, 1])
-    with col_upload:
-        uploaded = st.file_uploader(
-            "Importer un fichier CSV de sessions reseau",
-            type=["csv", "pcap"],
-            help="CSV avec les 27 features session-based. Colonne 'label' optionnelle (0=benin, 1=malveillant)."
-        )
+    # --- Explication ---
+    st.markdown("### Comment ca marche ?")
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown("""
+        **1. Importez vos donnees**
+
+        Un fichier CSV de sessions reseau
+        ou une capture PCAP. Le dashboard
+        detecte automatiquement le format.
+        """)
+    with col2:
+        st.markdown("""
+        **2. Classification automatique**
+
+        Le modele Random Forest (99.5% accuracy)
+        analyse chaque session et attribue une
+        probabilite de malveillance.
+        """)
+    with col3:
+        st.markdown("""
+        **3. Explorez les resultats**
+
+        Explications SHAP, mode cascade,
+        projection UMAP, export PDF.
+        Chaque alerte est justifiee.
+        """)
+
+    st.markdown("---")
+
+    # --- Deux gros boutons ---
+    st.markdown("### Commencer l'analyse")
+
+    col_demo, col_import = st.columns(2)
+
     with col_demo:
-        st.markdown("<br>", unsafe_allow_html=True)
-        load_demo = st.button("Charger la demo (5 000 sessions)",
-                              use_container_width=True,
-                              type="primary")
+        st.markdown("""
+        <div class="metric-card">
+            <h3>Donnees de demonstration</h3>
+            <div class="value blue" style="font-size:1.2rem">5 000 sessions CIC-Darknet2020</div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.caption("Sessions reseau labelisees (benin / malveillant) pour explorer toutes les fonctionnalites du dashboard.")
+        if st.button("Utiliser les donnees de demo", type="primary", use_container_width=True):
+            load_demo_data()
+            st.rerun()
 
-    # Charger les donnees
-    if uploaded is not None:
-        if uploaded.name.endswith(".pcap") or uploaded.name.endswith(".pcapng"):
-            _handle_pcap_upload(uploaded, session_features)
-        else:
-            df = pd.read_csv(uploaded, low_memory=False)
-            # Detection de format et adaptation si necessaire
-            df = _handle_csv_format(df, session_features)
-            if df is not None:
-                st.session_state["data"] = df
-                st.session_state["data_source"] = uploaded.name
-    elif load_demo:
-        if os.path.exists(DEMO_DATA_PATH):
-            df = pd.read_csv(DEMO_DATA_PATH, low_memory=False)
+    with col_import:
+        st.markdown("""
+        <div class="metric-card">
+            <h3>Vos propres donnees</h3>
+            <div class="value green" style="font-size:1.2rem">CSV ou PCAP</div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.caption("Importez vos sessions reseau (CSV 27 features) ou une capture reseau (.pcap) pour une analyse reelle.")
+        uploaded = st.file_uploader(
+            "Importer",
+            type=["csv", "pcap"],
+            label_visibility="collapsed",
+            help="CSV session-based (27 features) ou fichier PCAP."
+        )
+        if uploaded is not None:
+            _process_upload(uploaded)
+            st.rerun()
+
+    st.markdown("---")
+
+    # --- Modeles disponibles ---
+    st.markdown("### Modeles pre-entraines")
+
+    from src.models import load_models
+    _, model_info = load_models()
+
+    col1, col2, col3 = st.columns(3)
+    descriptions = [
+        "Classification principale — analyse les 27 features de chaque session (F1 = 0.995)",
+        "Explications SHAP — comprendre pourquoi le modele classe une session (F1 = 0.990)",
+        "Detection non supervisee — signale les sessions anormales (Precision = 94.7%)"
+    ]
+    for i, (name, size, status) in enumerate(model_info):
+        with [col1, col2, col3][i]:
+            icon = "OK" if status == "Charge" else "Non trouve"
+            color = "green" if status == "Charge" else "red"
+            render_metric_card(name, icon, color)
+            st.caption(descriptions[i])
+
+
+def _process_upload(uploaded):
+    """Traite un fichier uploade (CSV ou PCAP)."""
+    from src.models import load_models, load_feature_mapping, SESSION_MAPPING_PATH
+    session_features = load_feature_mapping(SESSION_MAPPING_PATH)
+
+    if uploaded.name.endswith(".pcap") or uploaded.name.endswith(".pcapng"):
+        try:
+            from src.feature_extraction import extract_sessions_from_pcap, compute_session_features
+            pcap_bytes = uploaded.read()
+            sessions_dict = extract_sessions_from_pcap(pcap_bytes)
+            if not sessions_dict:
+                st.error("Aucune session TCP/UDP trouvee dans le PCAP.")
+                return
+            df = compute_session_features(sessions_dict, session_features)
             st.session_state["data"] = df
-            st.session_state["data_source"] = "Demonstration : 5 000 sessions du dataset CIC-Darknet2020"
-        else:
-            st.error("Fichier de demonstration introuvable.")
+            st.session_state["data_source"] = f"PCAP : {uploaded.name} ({len(sessions_dict)} sessions)"
+        except Exception as e:
+            st.error(f"Erreur PCAP : {e}")
             return
+    else:
+        df = pd.read_csv(uploaded, low_memory=False)
+        from src.feature_extraction import detect_dataset_format, adapt_dataframe
+        fmt, matched, missing = detect_dataset_format(df, session_features)
+        if fmt == "Format inconnu":
+            st.error("Format CSV non reconnu. Utilisez un CSV CIC-Darknet2020 ou un fichier PCAP.")
+            return
+        if missing:
+            df = adapt_dataframe(df, session_features)
+        st.session_state["data"] = df
+        st.session_state["data_source"] = uploaded.name
 
-    if "data" not in st.session_state:
-        _render_landing(models)
-        return
+    # Lancer les predictions
+    models, _ = load_models()
+    if "rf_session" in models and "data" in st.session_state:
+        df = st.session_state["data"]
+        avail = [f for f in session_features if f in df.columns]
+        if len(avail) == len(session_features):
+            X = np.nan_to_num(df[session_features].values.astype(float), nan=0.0)
+            probas = models["rf_session"].predict_proba(X)[:, 1]
+            preds = (probas >= 0.5).astype(int)
+            st.session_state["probas"] = probas
+            st.session_state["preds"] = preds
+            st.session_state["preds_rf"] = preds
+            st.session_state["if_preds"] = None
+            st.session_state["if_scores"] = None
+            st.session_state["X"] = X
+            if "label" in df.columns:
+                st.session_state["y_true"] = df["label"].values.astype(int)
+
+
+# =============================================================================
+# ANALYSE (quand des donnees sont chargees)
+# =============================================================================
+
+def _render_analysis(models, session_features, config):
+    """Affiche les resultats d'analyse."""
 
     df = st.session_state["data"]
     source = st.session_state.get("data_source", "")
-    st.caption(f"Source : {source}")
 
-    # --- Predictions ---
+    # Header compact
+    col_title, col_source, col_new = st.columns([3, 4, 1])
+    with col_title:
+        st.markdown("## Vue d'ensemble")
+    with col_source:
+        st.caption(f"Source : {source}")
+    with col_new:
+        if st.button("Nouvelle analyse", use_container_width=True):
+            for key in ["data", "data_source", "probas", "preds", "preds_rf",
+                        "if_preds", "if_scores", "X", "y_true", "packet_data",
+                        "packet_source", "umap_embedding", "umap_indices"]:
+                st.session_state.pop(key, None)
+            st.rerun()
+
+    # Recalculer les predictions avec le seuil actuel
     if "rf_session" not in models:
         st.error("Modele Random Forest non disponible.")
         return
 
     missing = [f for f in session_features if f not in df.columns]
     if missing:
-        st.error(f"Features manquantes dans le CSV : {missing[:5]}...")
+        st.error(f"Features manquantes : {missing[:5]}...")
         return
 
     X = np.nan_to_num(df[session_features].values.astype(float), nan=0.0)
@@ -116,15 +252,14 @@ def render(models, session_features, config):
     with col2:
         render_metric_card("Sessions benignes", f"{n_benign:,}", "green")
     with col3:
-        render_metric_card("Alertes (suspectes)", f"{n_alerts:,}", "red" if n_alerts > 0 else "green")
+        render_metric_card("Alertes", f"{n_alerts:,}", "red" if n_alerts > 0 else "green")
     with col4:
-        render_metric_card("Alertes critiques (P>0.8)", f"{n_high:,}", "yellow")
+        render_metric_card("Critiques (P>0.8)", f"{n_high:,}", "yellow")
 
     explain(
-        f"Le modele a analyse <strong>{n_total:,} sessions</strong> reseau. "
-        f"Parmi elles, <strong>{n_alerts:,}</strong> ont une probabilite de malveillance "
-        f"superieure au seuil de <strong>{threshold}</strong> (configurable dans l'onglet Configuration). "
-        f"Les alertes critiques sont celles avec une probabilite > 0.8."
+        f"<strong>{n_total:,} sessions</strong> analysees. "
+        f"<strong>{n_alerts:,}</strong> depassent le seuil de {threshold} (configurable dans la sidebar). "
+        f"Les alertes critiques (P > 0.8) sont les plus suspectes."
     )
 
     # --- Distribution des probabilites ---
@@ -133,11 +268,11 @@ def render(models, session_features, config):
     if has_labels:
         fig = go.Figure()
         fig.add_trace(go.Histogram(
-            x=probas[y_true == 0], nbinsx=50, name="Sessions benignes (label=0)",
+            x=probas[y_true == 0], nbinsx=50, name="Benignes (label=0)",
             marker_color="#3b82f6", opacity=0.6
         ))
         fig.add_trace(go.Histogram(
-            x=probas[y_true == 1], nbinsx=50, name="Sessions malveillantes (label=1)",
+            x=probas[y_true == 1], nbinsx=50, name="Malveillantes (label=1)",
             marker_color="#ef4444", opacity=0.6
         ))
         fig.update_layout(barmode="overlay")
@@ -158,14 +293,12 @@ def render(models, session_features, config):
     st.plotly_chart(fig, use_container_width=True)
 
     explain(
-        "Chaque session recoit un <strong>score entre 0 et 1</strong>. "
-        "Un score proche de 0 = probablement benin. Proche de 1 = probablement malveillant. "
-        "La ligne rouge verticale est le seuil de decision : tout ce qui est a droite est signale comme alerte. "
-        "Un bon modele separe bien les deux groupes (pics distincts a gauche et a droite)."
+        "Score de 0 a 1 pour chaque session. La ligne rouge = seuil de decision. "
+        "A droite du seuil = alerte. Un bon modele separe bien les deux groupes."
     )
 
     # --- Table des sessions a risque ---
-    st.subheader("Top 100 des sessions les plus suspectes")
+    st.subheader("Sessions les plus suspectes")
 
     df_display = df.copy()
     df_display["probabilite"] = probas
@@ -193,111 +326,16 @@ def render(models, session_features, config):
         height=400
     )
 
-    explain(
-        "Ce tableau montre les 100 sessions avec la probabilite de malveillance la plus elevee. "
-        "La colonne <strong>probabilite</strong> est coloree du vert (benin) au rouge (malveillant). "
-        "Si les donnees contiennent des labels, la colonne <strong>verite terrain</strong> montre "
-        "la vraie nature de la session pour verifier les predictions."
-    )
-
     # --- Export buttons ---
-    _render_export_buttons(df, probas, preds_combined, session_features, config)
-
-
-def _handle_csv_format(df, session_features):
-    """Detecte le format du CSV et adapte si necessaire."""
-    from src.feature_extraction import detect_dataset_format, adapt_dataframe
-
-    fmt, matched, missing = detect_dataset_format(df, session_features)
-
-    if fmt == "CIC-Darknet2020" and not missing:
-        return df
-
-    if fmt == "Format inconnu":
-        st.warning(
-            f"Format CSV non reconnu. Aucune des 27 features attendues n'a ete trouvee. "
-            f"Colonnes du fichier : {', '.join(df.columns[:10])}..."
-        )
-        st.info("Utilisez un CSV au format CIC-Darknet2020 ou un fichier PCAP.")
-        return None
-
-    # Format partiellement compatible
-    st.warning(
-        f"Format detecte : **{fmt}**. "
-        f"{len(matched)}/{len(session_features)} features trouvees. "
-        f"Features manquantes (mises a 0) : {', '.join(missing[:5])}{'...' if len(missing) > 5 else ''}"
-    )
-
-    df_adapted = adapt_dataframe(df, session_features)
-    return df_adapted
-
-
-def _handle_pcap_upload(uploaded, session_features):
-    """Gere l'upload d'un fichier PCAP."""
-    try:
-        from src.feature_extraction import extract_sessions_from_pcap, compute_session_features
-        with st.spinner("Extraction des sessions depuis le fichier PCAP..."):
-            pcap_bytes = uploaded.read()
-            sessions_dict = extract_sessions_from_pcap(pcap_bytes)
-            if not sessions_dict:
-                st.error("Aucune session TCP/UDP trouvee dans le fichier PCAP.")
-                return
-            df = compute_session_features(sessions_dict, session_features)
-            st.session_state["data"] = df
-            st.session_state["data_source"] = f"PCAP : {uploaded.name} ({len(sessions_dict)} sessions extraites)"
-            st.success(f"{len(sessions_dict)} sessions extraites depuis {uploaded.name}")
-    except ImportError:
-        st.error("Module d'extraction PCAP non disponible. Installez dpkt : `pip install dpkt`")
-    except Exception as e:
-        st.error(f"Erreur lors du parsing PCAP : {e}")
-
-
-def _render_landing(models):
-    """Affiche la page d'accueil quand aucune donnee n'est chargee."""
-    from src.models import load_models
-
-    st.markdown("---")
-    st.markdown("### Comment ca marche ?")
-    st.markdown("""
-    1. **Importez un CSV** de sessions reseau (ou cliquez sur "Charger la demo")
-    2. Le modele **Random Forest** (99.5% accuracy) analyse chaque session
-    3. Les sessions suspectes sont signalees avec leur **probabilite de malveillance**
-    4. Explorez les alertes dans les autres onglets (SHAP, configuration du seuil, statistiques)
-    """)
-
-    st.markdown("### Modeles pre-charges")
-    _, model_info = load_models()
-    cols = st.columns(3)
-    descriptions = [
-        "Classification principale — analyse les 27 features de chaque session",
-        "Utilisee pour expliquer les predictions (SHAP waterfall)",
-        "Detection non supervisee — signale les sessions anormales"
-    ]
-    for i, (name, size, status) in enumerate(model_info):
-        with cols[i]:
-            icon = "Charge" if status == "Charge" else "Non trouve"
-            color = "green" if status == "Charge" else "red"
-            render_metric_card(name, icon, color)
-            if size != "-":
-                st.caption(descriptions[i])
-
-
-def _render_export_buttons(df, probas, preds, session_features, config):
-    """Affiche les boutons d'export CSV et PDF."""
     st.markdown("---")
     st.subheader("Exporter les resultats")
-
-    explain(
-        "Telechargez les resultats de l'analyse au format CSV (donnees brutes) "
-        "ou PDF (rapport complet avec graphiques)."
-    )
 
     col1, col2 = st.columns(2)
 
     with col1:
         try:
             from src.report import generate_csv_report
-            csv_data = generate_csv_report(df, probas, preds, session_features)
+            csv_data = generate_csv_report(df, probas, preds_combined, session_features)
             st.download_button(
                 "Telecharger CSV",
                 data=csv_data,
@@ -305,14 +343,14 @@ def _render_export_buttons(df, probas, preds, session_features, config):
                 mime="text/csv",
                 use_container_width=True
             )
-        except ImportError:
-            st.button("Telecharger CSV", disabled=True, use_container_width=True)
+        except Exception:
+            pass
 
     with col2:
         try:
             from src.report import generate_pdf_report
-            y_true = st.session_state.get("y_true")
-            pdf_data = generate_pdf_report(df, probas, preds, config, session_features, y_true)
+            y_true_val = st.session_state.get("y_true")
+            pdf_data = generate_pdf_report(df, probas, preds_combined, config, session_features, y_true_val)
             st.download_button(
                 "Telecharger PDF",
                 data=pdf_data,
@@ -320,7 +358,5 @@ def _render_export_buttons(df, probas, preds, session_features, config):
                 mime="application/pdf",
                 use_container_width=True
             )
-        except ImportError:
-            st.button("Telecharger PDF", disabled=True, use_container_width=True)
-        except Exception as e:
-            st.warning(f"Erreur generation PDF : {e}")
+        except Exception:
+            pass
