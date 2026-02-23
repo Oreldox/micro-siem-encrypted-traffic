@@ -59,31 +59,31 @@ st.sidebar.caption("Micro-SIEM v2.0 | Loris Dietrich")
 
 # === ROUTING ===
 if page == "Vue d'ensemble":
-    from pages.overview import render
+    from pages_app.overview import render
     render(models, session_features, config)
 
 elif page == "Analyse detaillee":
-    from pages.detail import render
+    from pages_app.detail import render
     render(models, session_features, config)
 
 elif page == "Mode cascade":
-    from pages.cascade import render
+    from pages_app.cascade import render
     render(models, session_features, packet_features, config)
 
 elif page == "Projection UMAP":
-    from pages.visualization import render
+    from pages_app.visualization import render
     render(models, session_features, config)
 
 elif page == "Configuration":
-    from pages.config import render
+    from pages_app.config import render
     new_config = render(config)
     if new_config:
         config = new_config
 
 elif page == "Statistiques":
-    from pages.stats import render
+    from pages_app.stats import render
     render(models, session_features, config)
 
 elif page == "A propos":
-    from pages.about import render
+    from pages_app.about import render
     render()
