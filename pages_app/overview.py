@@ -43,11 +43,11 @@ def _render_landing_page():
     col1, col2, col3 = st.columns(3)
     with col1:
         st.markdown("""
-        **1. Importez vos donnees**
+        **1. Importez une capture reseau**
 
-        Un fichier CSV de sessions reseau
-        ou une capture PCAP. Le dashboard
-        detecte automatiquement le format.
+        Glissez un fichier **.pcap** (capture
+        Wireshark, tcpdump...). Les features
+        sont extraites automatiquement.
         """)
     with col2:
         st.markdown("""
@@ -88,16 +88,16 @@ def _render_landing_page():
     with col_import:
         st.markdown("""
         <div class="metric-card">
-            <h3>Vos propres donnees</h3>
-            <div class="value green" style="font-size:1.2rem">CSV ou PCAP</div>
+            <h3>Votre capture reseau</h3>
+            <div class="value green" style="font-size:1.2rem">Fichier PCAP</div>
         </div>
         """, unsafe_allow_html=True)
-        st.caption("Importez vos sessions reseau (CSV 27 features) ou une capture reseau (.pcap) pour une analyse reelle.")
+        st.caption("Importez une capture reseau (.pcap) depuis Wireshark ou tcpdump. Les features sont extraites et analysees automatiquement.")
         uploaded = st.file_uploader(
-            "Importer",
-            type=["csv", "pcap"],
+            "Importer un fichier PCAP ou CSV",
+            type=["pcap", "csv"],
             label_visibility="collapsed",
-            help="CSV session-based (27 features) ou fichier PCAP."
+            help="Fichier .pcap (capture reseau) ou .csv (sessions pre-traitees)."
         )
         if uploaded is not None:
             _process_upload(uploaded)
