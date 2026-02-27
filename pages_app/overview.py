@@ -13,31 +13,43 @@ from src.ui_components import explain, render_metric_card
 APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 DATASETS = {
-    "Mix realiste (500 benin + 500 malveillant)": (
+    "CIC-Darknet2020 — 1 000 sessions (test set, mix 50/50)": (
         "external_test_sample.csv",
-        "Mix realiste — 1 000 sessions (500 benin + 500 malveillant)",
+        "CIC-Darknet2020 — 1 000 sessions du jeu de test (500 benignes + 500 malveillantes)",
     ),
-    "Dataset complet (5 000 sessions)": (
+    "CIC-Darknet2020 — 5 000 sessions (test set, distribution reelle)": (
         "demo_sample.csv",
-        "Dataset complet — 5 000 sessions CIC-Darknet2020",
+        "CIC-Darknet2020 — 5 000 sessions du jeu de test (distribution reelle du dataset)",
     ),
-    "Malwares uniquement (1 000)": (
-        "sample_malware_only.csv",
-        "Malwares uniquement — 1 000 sessions",
-    ),
-    "Trafic benin uniquement (1 000)": (
-        "sample_benign_only.csv",
-        "Trafic benin — 1 000 sessions",
-    ),
+}
+
+# Performances de reference (entrainement sur CIC-Darknet2020, 122 000 sessions)
+TRAINING_REF = {
+    "accuracy": 99.50,
+    "precision": 99.84,
+    "recall": 99.16,
+    "f1": 0.9950,
 }
 
 
 def render(models, session_features, config):
+    # Banniere d'introduction
+    st.markdown("""
+    <div class="hero-banner" style="padding: 20px 30px;">
+        <h1 style="font-size: 1.5rem; margin-bottom: 4px;">Analyse Trafic Chiffre</h1>
+        <p style="margin: 0;">
+            Test d'un modele <strong>Random Forest</strong> (27 features, F1 = 0.995 a l'entrainement)
+            sur du trafic reseau chiffre <strong>jamais vu</strong> pendant l'entrainement.<br>
+            <em>Donnees : CIC-Darknet2020 — jeu de test (sessions TCP/UDP benignes et malveillantes)</em>
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
     # Auto-load default dataset if nothing is loaded
     if "data" not in st.session_state or "probas" not in st.session_state:
         _load_csv_dataset(
             "external_test_sample.csv",
-            "Mix realiste — 1 000 sessions (500 benin + 500 malveillant)",
+            "Mix equilibre — 1 000 sessions (CIC-Darknet2020, jeu de test)",
         )
         st.session_state["_loaded_dataset"] = "external_test_sample.csv"
 
@@ -45,23 +57,17 @@ def render(models, session_features, config):
         st.error("Impossible de charger le dataset par defaut.")
         return
 
-    # Header + selecteur de dataset
-    col_title, col_select = st.columns([3, 3])
-    with col_title:
-        st.markdown("## Resultats d'analyse")
-    with col_select:
-        selected = st.selectbox(
-            "Dataset d'exemple",
-            list(DATASETS.keys()),
-            key="dataset_selector",
-        )
-        fname, label = DATASETS[selected]
-        if st.session_state.get("_loaded_dataset") != fname:
-            _load_csv_dataset(fname, label)
-            st.session_state["_loaded_dataset"] = fname
-            st.rerun()
-
-    st.caption(f"Source : {st.session_state.get('data_source', '')}")
+    # Selecteur de dataset
+    selected = st.selectbox(
+        "Choisir un dataset de test",
+        list(DATASETS.keys()),
+        key="dataset_selector",
+    )
+    fname, label = DATASETS[selected]
+    if st.session_state.get("_loaded_dataset") != fname:
+        _load_csv_dataset(fname, label)
+        st.session_state["_loaded_dataset"] = fname
+        st.rerun()
 
     # Resultats d'analyse
     _render_analysis(models, session_features, config)
@@ -493,6 +499,10 @@ def _render_analysis(models, session_features, config):
             f"Les alertes critiques (P > 0.8) sont les plus suspectes."
         )
 
+    # --- Performance du modele (si labels disponibles) ---
+    if has_labels:
+        _render_performance_metrics(preds_combined, probas)
+
     # --- Synthese de l'analyse ---
     st.markdown("---")
     st.subheader("Synthese de l'analyse")
@@ -626,6 +636,86 @@ def _render_analysis(models, session_features, config):
             )
         except Exception as e:
             st.warning(f"Export PDF indisponible : {e}")
+
+
+def _render_performance_metrics(preds, probas):
+    """Affiche performance test vs entrainement + matrice de confusion."""
+    y_true = st.session_state["y_true"]
+    from sklearn.metrics import (accuracy_score, precision_score, recall_score,
+                                 f1_score, confusion_matrix)
+
+    acc = 100 * accuracy_score(y_true, preds)
+    prec = 100 * precision_score(y_true, preds, zero_division=0)
+    rec = 100 * recall_score(y_true, preds, zero_division=0)
+    f1 = f1_score(y_true, preds, zero_division=0)
+    tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
+
+    ref = TRAINING_REF
+
+    st.markdown("---")
+    st.subheader("Performance du modele")
+
+    explain(
+        "Comparaison des performances sur ce dataset (donnees <strong>jamais vues</strong>) "
+        "avec les performances obtenues pendant l'<strong>entrainement</strong> "
+        "(122 000 sessions CIC-Darknet2020)."
+    )
+
+    # Tableau comparatif
+    def _delta(test_val, ref_val):
+        diff = test_val - ref_val
+        if abs(diff) < 0.01:
+            return "="
+        return f"{diff:+.2f}%"
+
+    comparison_data = {
+        "Metrique": ["Accuracy", "Precision", "Recall", "F1-score"],
+        "Ce dataset": [f"{acc:.2f}%", f"{prec:.2f}%", f"{rec:.2f}%", f"{f1:.4f}"],
+        "Entrainement (ref)": [
+            f"{ref['accuracy']:.2f}%", f"{ref['precision']:.2f}%",
+            f"{ref['recall']:.2f}%", f"{ref['f1']:.4f}",
+        ],
+        "Ecart": [
+            _delta(acc, ref["accuracy"]), _delta(prec, ref["precision"]),
+            _delta(rec, ref["recall"]), _delta(f1 * 100, ref["f1"] * 100),
+        ],
+    }
+    import pandas as pd_table
+    df_comp = pd_table.DataFrame(comparison_data)
+    st.dataframe(df_comp, use_container_width=True, hide_index=True)
+
+    # Metric cards
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        render_metric_card("Accuracy", f"{acc:.2f}%", "blue")
+    with col2:
+        render_metric_card("Precision", f"{prec:.2f}%", "green")
+    with col3:
+        render_metric_card("Recall", f"{rec:.2f}%", "yellow")
+    with col4:
+        render_metric_card("F1-score", f"{f1:.4f}", "blue")
+
+    # Matrice de confusion
+    col_cm, col_desc = st.columns(2)
+    with col_cm:
+        z = [[tn, fp], [fn, tp]]
+        text = [[f"TN<br>{tn:,}", f"FP<br>{fp:,}"],
+                [f"FN<br>{fn:,}", f"TP<br>{tp:,}"]]
+        fig = go.Figure(data=go.Heatmap(
+            z=z, x=["Predit Benin", "Predit Malveillant"],
+            y=["Reel Benin", "Reel Malveillant"],
+            text=text, texttemplate="%{text}", textfont=dict(size=14),
+            colorscale=[[0, "#1e293b"], [1, "#3b82f6"]], showscale=False
+        ))
+        fig.update_layout(template="plotly_dark", height=300, margin=dict(t=20, b=20))
+        st.plotly_chart(fig, use_container_width=True)
+    with col_desc:
+        explain(
+            f"<strong>TP = {tp:,}</strong> malwares correctement detectes.<br>"
+            f"<strong>TN = {tn:,}</strong> sessions benignes correctement ignorees.<br>"
+            f"<strong>FP = {fp:,}</strong> fausses alertes.<br>"
+            f"<strong>FN = {fn:,}</strong> malwares rates (le plus dangereux)."
+        )
 
 
 def _render_analysis_summary(n_total, n_alerts, n_high, probas, preds, threshold, has_labels):
