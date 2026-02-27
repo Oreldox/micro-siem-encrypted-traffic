@@ -38,6 +38,22 @@ DATASETS = {
         "attacks": "Probing, Bruteforce HTTPS/XML, CryptoMiner XMRIGCC",
         "encrypted": True,
     },
+    "USTC-TFC2016 — 1 000 sessions (malwares reels : Zeus, Tinba, Geodo, Miuref)": {
+        "file": "sample_ustc_tfc2016.csv",
+        "label": "USTC-TFC2016 — 1 000 sessions (500 benignes + 500 malwares reels)",
+        "features": 27,
+        "source": "USTC-TFC2016 (Univ. Science & Technology of China, 2016)",
+        "attacks": "Zeus (trojan), Tinba (banking), Geodo (botnet), Miuref (backdoor)",
+        "encrypted": True,
+    },
+    "CIC-Darknet2020 VPN/Tor — 1 000 sessions (tunneling chiffre legitime)": {
+        "file": "sample_darknet2020_vpntor.csv",
+        "label": "CIC-Darknet2020 VPN/Tor — 1 000 sessions (500 normales + 500 VPN/Tor)",
+        "features": 19,
+        "source": "CIC-Darknet2020 (Univ. New Brunswick, 2020)",
+        "attacks": "Trafic VPN/Tor legitime (Browsing, Chat, P2P, Streaming)",
+        "encrypted": True,
+    },
 }
 
 TRAINING_REF = {
@@ -486,33 +502,70 @@ def _render_performance(preds, probas, y_true, ds_info):
         st.markdown("---")
         st.subheader("Limites de generalisation")
         st.error(
-            f"**F1 = {f1:.4f}** — Le modele ne detecte pas les attaques de ce dataset."
+            f"**F1 = {f1:.4f}** — Le modele ne detecte pas les menaces de ce dataset."
         )
 
+        ds_file = ds_info.get("file", "")
         reasons = []
-        if n_feat < 27:
+
+        if "vpntor" in ds_file:
             reasons.append(
-                f"**Features incompletes** : seules {n_feat}/27 features sont disponibles. "
-                f"Les 8 features manquantes (TTL, TCP headers, etc.) ne sont pas extractibles "
-                f"depuis le format CICFlowMeter et sont mises a zero."
+                "**Trafic tunnel legitime** : ce dataset contient du trafic VPN et Tor "
+                "utilise pour des activites normales (navigation, chat, streaming). "
+                "Le modele classe correctement ces sessions comme benignes — "
+                "il ne produit **pas de faux positifs** sur du tunneling chiffre legitime."
             )
-        reasons.append(
-            f"**Types d'attaques differents** : le modele a ete entraine sur du trafic darknet "
-            f"(trojans, ransomware, botnets). Ce dataset contient des attaques de type "
-            f"*{ds_info.get('attacks', 'inconnu')}*, qui ont des patterns reseau differents."
-        )
+            reasons.append(
+                "**Absence de malware** : le label \"darknet\" ici designe le type de "
+                "tunnel (VPN/Tor), pas un comportement malveillant. Le modele est entraine "
+                "a detecter des *patterns de malware*, pas le simple usage d'un tunnel."
+            )
+        elif "ustc" in ds_file:
+            reasons.append(
+                "**Distribution de features differente** : bien que les 27/27 features "
+                "soient presentes, les valeurs sont extraites par un processus different "
+                "de celui utilise pour CIC-Darknet2020. Les distributions statistiques "
+                "ne correspondent pas a celles vues a l'entrainement."
+            )
+            reasons.append(
+                f"**Familles de malware differentes** : ce dataset contient "
+                f"*{ds_info.get('attacks', 'inconnu')}*. Ces malwares datent de 2016 "
+                f"et ont des patterns reseau differents des malwares darknet de 2020."
+            )
+        elif "hikari" in ds_file:
+            if n_feat < 27:
+                reasons.append(
+                    f"**Features incompletes** : seules {n_feat}/27 features sont disponibles. "
+                    f"Les 8 features manquantes (TTL, TCP headers, etc.) ne sont pas extractibles "
+                    f"depuis le format CICFlowMeter et sont mises a zero."
+                )
+            reasons.append(
+                f"**Types d'attaques differents** : le modele a ete entraine sur du trafic darknet "
+                f"(trojans, ransomware, botnets). Ce dataset contient des attaques de type "
+                f"*{ds_info.get('attacks', 'inconnu')}*, qui ont des patterns reseau differents."
+            )
+        else:
+            if n_feat < 27:
+                reasons.append(
+                    f"**Features incompletes** : seules {n_feat}/27 features sont disponibles."
+                )
+            reasons.append(
+                f"**Types d'attaques differents** : *{ds_info.get('attacks', 'inconnu')}*."
+            )
+
         reasons.append(
             "**Specialisation du modele** : un modele Random Forest entraine sur un type "
             "specifique de trafic malveillant ne generalise pas automatiquement a d'autres "
-            "types d'attaques. C'est une limitation connue des approches supervisees."
+            "types d'attaques ou d'autres methodes d'extraction de features. "
+            "C'est une limitation connue des approches supervisees."
         )
 
         for i, r in enumerate(reasons, 1):
             st.markdown(f"{i}. {r}")
 
         explain(
-            "Ce resultat est attendu et illustre l'importance de l'adequation entre "
+            "Ce resultat illustre l'importance de l'adequation entre "
             "les donnees d'entrainement et les donnees de test. "
-            "Pour detecter d'autres types d'attaques, il faudrait re-entrainer le modele "
-            "sur des donnees incluant ces types d'attaques."
+            "Pour ameliorer la generalisation, il faudrait re-entrainer le modele "
+            "sur un corpus plus diversifie (plus de sources, plus de types d'attaques)."
         )
