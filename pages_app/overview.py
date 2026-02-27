@@ -34,6 +34,13 @@ DATASETS = {
         "source": "CIC-IDS2017 (Univ. New Brunswick, 2017)",
         "attacks": "Web Attack Brute Force, XSS, SQL Injection",
     },
+    "HIKARI-2021 — 1 000 sessions (trafic chiffre HTTPS : Probing, Bruteforce, CryptoMiner)": {
+        "file": "sample_hikari2021.csv",
+        "label": "HIKARI-2021 — 1 000 sessions chiffrees (500 benignes + 500 attaques)",
+        "features": 19,
+        "source": "HIKARI-2021 (Zenodo/MDPI, 2021)",
+        "attacks": "Probing, Bruteforce HTTPS/XML, CryptoMiner XMRIGCC",
+    },
 }
 
 # Performances de reference (entrainement sur CIC-Darknet2020, 122 000 sessions)
