@@ -73,6 +73,13 @@ def inject_css():
         font-size: 0.9rem;
         color: #cbd5e1;
     }
+    /* Navigation section separators (items 6 and 11 = start of 2nd and 3rd group) */
+    div[data-testid="stSidebar"] div[role="radiogroup"] label:nth-child(6),
+    div[data-testid="stSidebar"] div[role="radiogroup"] label:nth-child(11) {
+        margin-top: 16px;
+        padding-top: 12px;
+        border-top: 1px solid #334155;
+    }
 </style>
 """, unsafe_allow_html=True)
 

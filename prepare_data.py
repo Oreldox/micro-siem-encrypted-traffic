@@ -320,12 +320,46 @@ def create_external_test_sample():
     print(f"  -> external_test_sample.csv created ({len(sample)} sessions)")
 
 
+def create_malware_only_sample():
+    """Create a 1000-session malware-only sample from the test set."""
+    print("\n--- Malware-only sample ---")
+    test_path = os.path.join(ANALYSIS_DIR, "test", "session_based_testset.csv")
+    if not os.path.exists(test_path):
+        print("  SKIP: test set not found")
+        return
+    df_test = pd.read_csv(test_path, low_memory=False)
+    if "label" not in df_test.columns:
+        print("  SKIP: no label column")
+        return
+    malicious = df_test[df_test["label"] == 1].sample(n=min(1000, len(df_test[df_test["label"] == 1])), random_state=99)
+    out_path = os.path.join(DATA_DIR, "sample_malware_only.csv")
+    malicious.to_csv(out_path, index=False)
+    print(f"  -> sample_malware_only.csv created ({len(malicious)} sessions)")
+
+
+def create_benign_only_sample():
+    """Create a 1000-session benign-only sample from the test set."""
+    print("\n--- Benign-only sample ---")
+    test_path = os.path.join(ANALYSIS_DIR, "test", "session_based_testset.csv")
+    if not os.path.exists(test_path):
+        print("  SKIP: test set not found")
+        return
+    df_test = pd.read_csv(test_path, low_memory=False)
+    if "label" not in df_test.columns:
+        print("  SKIP: no label column")
+        return
+    benign = df_test[df_test["label"] == 0].sample(n=min(1000, len(df_test[df_test["label"] == 0])), random_state=99)
+    out_path = os.path.join(DATA_DIR, "sample_benign_only.csv")
+    benign.to_csv(out_path, index=False)
+    print(f"  -> sample_benign_only.csv created ({len(benign)} sessions)")
+
+
 # =========================================================================
 # MAIN
 # =========================================================================
 def main():
     print("=" * 60)
-    print("PREPARE DATA FOR MICRO-SIEM V5")
+    print("PREPARE DATA FOR ANALYSE TRAFIC CHIFFRE V5")
     print("=" * 60)
 
     ensure_dirs()
@@ -335,6 +369,8 @@ def main():
     create_shap_stats()
     copy_images()
     create_external_test_sample()
+    create_malware_only_sample()
+    create_benign_only_sample()
 
     print("\n" + "=" * 60)
     print("DONE! All data files created in data/")

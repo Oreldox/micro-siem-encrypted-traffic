@@ -1,6 +1,5 @@
 """
-Page 5 : Configuration — Visualisation de l'impact du seuil et de l'IF.
-Les parametres sont ajustables via la sidebar (panneau de gauche).
+Page : Configuration — Reglage du seuil de detection et de l'Isolation Forest.
 """
 
 import streamlit as st
@@ -12,27 +11,52 @@ from src.ui_components import explain, render_metric_card, has_labels
 
 def render(config):
     st.header("Configuration de la detection")
-    st.markdown("Ajustez le **seuil** et l'**Isolation Forest** via la sidebar (panneau de gauche).")
+
+    # --- Seuil de detection (deplace ici depuis la sidebar) ---
+    st.subheader("Seuil de detection")
+
+    explain(
+        "Le seuil determine a partir de quelle probabilite une session est consideree suspecte. "
+        "<strong>Seuil bas</strong> (ex: 0.3) = plus d'alertes, moins de malwares rates, "
+        "mais plus de fausses alertes. "
+        "<strong>Seuil haut</strong> (ex: 0.7) = moins d'alertes, mais risque de rater des menaces."
+    )
+
+    new_threshold = st.slider(
+        "Seuil de detection",
+        0.0, 1.0,
+        value=st.session_state.get("threshold", 0.5),
+        step=0.01,
+        help="Sessions avec P(malveillant) >= seuil = alerte"
+    )
+    if new_threshold != st.session_state.get("threshold"):
+        st.session_state["threshold"] = new_threshold
+        st.rerun()
+
+    # --- Isolation Forest ---
+    new_if = st.toggle(
+        "Activer l'Isolation Forest",
+        value=st.session_state.get("use_if", False),
+        help="Detection d'anomalies non supervisee en complement du Random Forest"
+    )
+    if new_if != st.session_state.get("use_if"):
+        st.session_state["use_if"] = new_if
+        st.rerun()
+
+    # Reconstruire config depuis session_state
+    config = {
+        "threshold": st.session_state["threshold"],
+        "use_if": st.session_state["use_if"],
+    }
 
     from src.ui_components import require_data
-    if not require_data("Chargez des donnees pour voir l'impact des parametres de detection."):
-        return config
+    if not require_data("Chargez des donnees sur la page Accueil pour voir l'impact des parametres."):
+        return
 
     threshold = config["threshold"]
     probas = st.session_state["probas"]
     n_alerts = int((probas >= threshold).sum())
     n_total = len(probas)
-
-    st.markdown("---")
-    st.subheader("Seuil de decision")
-
-    explain(
-        "Le seuil determine a partir de quelle probabilite une session est consideree suspecte. "
-        "Modifiez-le dans la <strong>sidebar</strong> (panneau de gauche). "
-        "<strong>Seuil bas</strong> (ex: 0.3) = plus d'alertes, moins de malwares rates, "
-        "mais plus de fausses alertes. "
-        "<strong>Seuil haut</strong> (ex: 0.7) = moins d'alertes, mais risque de rater des menaces."
-    )
 
     rec_threshold = st.session_state.get("recommended_threshold", 0.5)
 
@@ -173,9 +197,9 @@ def render(config):
             "(verite terrain), c'est-a-dire savoir a l'avance quelles sessions sont reellement malveillantes. "
             "Le trafic reel importe via PCAP n'a pas de labels — c'est normal.\n\n"
             "**Ce qui reste disponible sans labels :**\n"
-            "- Le nombre d'alertes ci-dessus evolue en temps reel quand vous deplacez le seuil dans la sidebar\n"
+            "- Le nombre d'alertes evolue en temps reel quand vous deplacez le seuil ci-dessus\n"
             "- L'Isolation Forest (ci-dessous) detecte les sessions anormales independamment du seuil\n"
-            "- La page **Vue d'ensemble** applique les parametres choisis ici"
+            "- La page **Accueil** applique les parametres choisis ici"
         )
 
     st.markdown("---")
@@ -186,7 +210,7 @@ def render(config):
         "L'Isolation Forest est un modele <strong>non supervise</strong> : il a appris ce qu'est "
         "du trafic normal sans jamais voir de malware. Il detecte les sessions qui s'ecartent de la norme. "
         "Si active, une session est alertee si le Random Forest <strong>ou</strong> l'IF la signale. "
-        "Activez-le dans la <strong>sidebar</strong> (panneau de gauche)."
+        "Activez-le avec le toggle ci-dessus."
     )
 
     if_status = "Active" if config["use_if"] else "Desactive"
@@ -211,4 +235,4 @@ def render(config):
             f"Ces sessions sont potentiellement des menaces non detectees par le classificateur supervise."
         )
 
-    return config
+    return

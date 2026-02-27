@@ -1,5 +1,5 @@
 """
-Page 1 : Vue d'ensemble — Landing page, import CSV/PCAP, classification, metriques, alertes.
+Page 1 : Accueil — Choix de dataset, classification, metriques, alertes.
 """
 
 import os
@@ -10,6 +10,8 @@ import plotly.graph_objects as go
 
 from src.ui_components import explain, render_metric_card, load_demo_data
 from src.models import DEMO_DATA_PATH
+
+APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def render(models, session_features, config):
@@ -27,103 +29,105 @@ def render(models, session_features, config):
 # =============================================================================
 
 def _render_landing_page():
-    """Page d'accueil quand aucune donnee n'est chargee."""
+    """Page d'accueil — choix du dataset d'exemple."""
 
     st.markdown("""
     <div class="hero-banner">
         <h1>Analyse Trafic Chiffre</h1>
-        <p>Detectez le trafic reseau malveillant (C2, exfiltration, ransomware)
-        a partir des metadonnees de connexion, <strong>sans dechiffrer le contenu</strong>.</p>
+        <p>Classification du trafic reseau chiffre par Machine Learning.
+        Detectez C2, exfiltration et ransomware <strong>sans dechiffrer le contenu</strong>.</p>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Explication ---
-    st.markdown("### Comment ca marche ?")
+    st.markdown("### Choisissez un dataset d'exemple")
+    st.caption(
+        "Ces donnees proviennent du jeu de test CIC-Darknet2020 — "
+        "le modele ne les a jamais vues pendant l'entrainement."
+    )
 
-    col1, col2, col3 = st.columns(3)
+    # --- Grille 2x2 ---
+    col1, col2 = st.columns(2)
+
     with col1:
         st.markdown("""
-        **1. Importez vos donnees**
-
-        PCAP, PCAPNG, CSV Wireshark,
-        CICFlowMeter, Excel, Zeek conn.log.
-        Detection automatique du format.
-        """)
-    with col2:
-        st.markdown("""
-        **2. Classification automatique**
-
-        Le modele Random Forest (99.5% accuracy)
-        analyse chaque session et attribue une
-        probabilite de malveillance.
-        """)
-    with col3:
-        st.markdown("""
-        **3. Explorez les resultats**
-
-        Explications SHAP, mode cascade,
-        projection UMAP, export PDF.
-        Chaque alerte est justifiee.
-        """)
-
-    st.markdown("---")
-
-    # --- Deux gros boutons ---
-    st.markdown("### Commencer l'analyse")
-
-    col_demo, col_import = st.columns(2)
-
-    with col_demo:
-        st.markdown("""
         <div class="metric-card">
-            <h3>Donnees de demonstration</h3>
-            <div class="value blue" style="font-size:1.2rem">5 000 sessions CIC-Darknet2020</div>
+            <h3>Mix equilibre</h3>
+            <div class="value blue" style="font-size:1.2rem">1 000 sessions</div>
         </div>
         """, unsafe_allow_html=True)
-        st.caption("Sessions reseau labelisees (benin / malveillant) pour explorer toutes les fonctionnalites du dashboard.")
-        if st.button("Utiliser les donnees de demo", type="primary", use_container_width=True):
+        st.caption("500 sessions benignes + 500 malveillantes. Ideal pour evaluer precision et recall.")
+        if st.button("Charger", type="primary", use_container_width=True, key="load_mix"):
+            if _load_csv_dataset("external_test_sample.csv", "Mix equilibre (1 000 sessions)"):
+                st.rerun()
+
+    with col2:
+        st.markdown("""
+        <div class="metric-card">
+            <h3>Dataset complet</h3>
+            <div class="value green" style="font-size:1.2rem">5 000 sessions</div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.caption("Echantillon large du dataset CIC-Darknet2020 avec distribution reelle.")
+        if st.button("Charger", type="primary", use_container_width=True, key="load_demo"):
             if load_demo_data():
                 st.rerun()
 
-    with col_import:
+    col3, col4 = st.columns(2)
+
+    with col3:
         st.markdown("""
         <div class="metric-card">
-            <h3>Vos donnees reseau</h3>
-            <div class="value green" style="font-size:1.2rem">Multi-format</div>
+            <h3>Malwares uniquement</h3>
+            <div class="value red" style="font-size:1.2rem">1 000 sessions</div>
         </div>
         """, unsafe_allow_html=True)
+        st.caption("Uniquement du trafic malveillant. Testez la capacite de detection du modele.")
+        if st.button("Charger", type="primary", use_container_width=True, key="load_malware"):
+            if _load_csv_dataset("sample_malware_only.csv", "Malwares uniquement (1 000 sessions)"):
+                st.rerun()
+
+    with col4:
+        st.markdown("""
+        <div class="metric-card">
+            <h3>Trafic benin uniquement</h3>
+            <div class="value yellow" style="font-size:1.2rem">1 000 sessions</div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.caption("Uniquement du trafic normal. Verifiez le taux de faux positifs du modele.")
+        if st.button("Charger", type="primary", use_container_width=True, key="load_benign"):
+            if _load_csv_dataset("sample_benign_only.csv", "Trafic benin (1 000 sessions)"):
+                st.rerun()
+
+    # --- Import custom (secondaire) ---
+    st.markdown("---")
+    with st.expander("Importer vos propres donnees", expanded=False):
         st.caption("PCAP/PCAPNG, CSV (Wireshark, CICFlowMeter, tshark), Excel, Zeek conn.log")
         uploaded = st.file_uploader(
             "Importer un fichier",
             type=["pcap", "pcapng", "csv", "xlsx", "xls", "log", "tsv"],
             label_visibility="collapsed",
-            help="Formats : PCAP/PCAPNG, CSV (CIC-Darknet2020, CICFlowMeter, Wireshark, tshark), Excel, Zeek conn.log"
         )
         if uploaded is not None:
             success = _process_upload(uploaded)
             if success:
                 st.rerun()
 
-    st.markdown("---")
 
-    # --- Modeles disponibles ---
-    st.markdown("### Modeles pre-entraines")
+def _load_csv_dataset(filename, source_label):
+    """Charge un CSV depuis data/, lance les predictions, retourne True si succes."""
+    path = os.path.join(APP_DIR, "data", filename)
+    if not os.path.exists(path):
+        st.error(f"Fichier introuvable : {filename}")
+        return False
 
-    from src.models import load_models
-    _, model_info = load_models()
+    df = pd.read_csv(path, low_memory=False)
+    st.session_state["data"] = df
+    st.session_state["data_source"] = source_label
+    st.session_state["feature_quality"] = {"total": 27, "available": 27}
 
-    col1, col2, col3 = st.columns(3)
-    descriptions = [
-        "Classification principale — analyse les 27 features de chaque session (F1 = 0.995)",
-        "Explications SHAP — comprendre pourquoi le modele classe une session (F1 = 0.990)",
-        "Detection non supervisee — signale les sessions anormales (Precision = 94.7%)"
-    ]
-    for i, (name, size, status) in enumerate(model_info):
-        with [col1, col2, col3][i]:
-            icon = "OK" if status == "Charge" else "Non trouve"
-            color = "green" if status == "Charge" else "red"
-            render_metric_card(name, icon, color)
-            st.caption(descriptions[i])
+    from src.models import load_feature_mapping, SESSION_MAPPING_PATH
+    session_features = load_feature_mapping(SESSION_MAPPING_PATH)
+    return _run_predictions(session_features)
 
 
 def _process_upload(uploaded):
@@ -383,7 +387,7 @@ def _render_analysis(models, session_features, config):
     # Header compact
     col_title, col_source, col_new = st.columns([3, 4, 1])
     with col_title:
-        st.markdown("## Vue d'ensemble")
+        st.markdown("## Resultats d'analyse")
     with col_source:
         st.caption(f"Source : {source}")
     with col_new:
@@ -472,7 +476,7 @@ def _render_analysis(models, session_features, config):
         if threshold != rec_threshold and fq_avail < 24:
             st.caption(
                 f"Le seuil recommande pour ce type de donnees est **{rec_threshold}** "
-                f"(actuel : {threshold}). Ajustez dans la sidebar."
+                f"(actuel : {threshold}). Ajustez dans Configuration."
             )
 
     # --- Metriques ---
@@ -532,7 +536,7 @@ def _render_analysis(models, session_features, config):
 
         explain(
             f"<strong>{n_total:,} sessions</strong> analysees. "
-            f"<strong>{n_alerts:,}</strong> depassent le seuil de {threshold} (configurable dans la sidebar). "
+            f"<strong>{n_alerts:,}</strong> depassent le seuil de {threshold} (configurable dans Configuration). "
             f"Les alertes critiques (P > 0.8) sont les plus suspectes."
         )
 
@@ -746,7 +750,7 @@ def _render_analysis_summary(n_total, n_alerts, n_high, probas, preds, threshold
         actions.append("Le trafic semble sain — verifiez periodiquement avec de nouvelles captures")
     if model_agreement is not None and model_agreement < 0.95:
         actions.append("Verifier les sessions ou RF et XGBoost sont en desaccord dans *Statistiques*")
-    actions.append("Ajuster le **seuil** dans la sidebar si le taux de faux positifs/negatifs est trop eleve")
+    actions.append("Ajuster le **seuil** dans **Configuration** si le taux de faux positifs/negatifs est trop eleve")
 
     for action in actions:
         st.markdown(f"- {action}")
