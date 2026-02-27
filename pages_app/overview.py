@@ -13,14 +13,27 @@ from src.ui_components import explain, render_metric_card
 APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 DATASETS = {
-    "CIC-Darknet2020 — 1 000 sessions (test set, mix 50/50)": (
-        "external_test_sample.csv",
-        "CIC-Darknet2020 — 1 000 sessions du jeu de test (500 benignes + 500 malveillantes)",
-    ),
-    "CIC-Darknet2020 — 5 000 sessions (test set, distribution reelle)": (
-        "demo_sample.csv",
-        "CIC-Darknet2020 — 5 000 sessions du jeu de test (distribution reelle du dataset)",
-    ),
+    "CIC-Darknet2020 — 1 000 sessions (test set, mix 50/50)": {
+        "file": "external_test_sample.csv",
+        "label": "CIC-Darknet2020 — 1 000 sessions du jeu de test (500 benignes + 500 malveillantes)",
+        "features": 27,
+        "source": "CIC-Darknet2020 (Univ. New Brunswick, 2020)",
+        "attacks": "25 familles de malwares (trojans, ransomware, botnets)",
+    },
+    "CIC-Darknet2020 — 5 000 sessions (test set, distribution reelle)": {
+        "file": "demo_sample.csv",
+        "label": "CIC-Darknet2020 — 5 000 sessions du jeu de test (distribution reelle du dataset)",
+        "features": 27,
+        "source": "CIC-Darknet2020 (Univ. New Brunswick, 2020)",
+        "attacks": "25 familles de malwares (trojans, ransomware, botnets)",
+    },
+    "CIC-IDS2017 — 1 000 sessions (attaques web : Brute Force, XSS, SQL Injection)": {
+        "file": "sample_cicids2017.csv",
+        "label": "CIC-IDS2017 — 1 000 sessions (500 benignes + 500 attaques web)",
+        "features": 19,
+        "source": "CIC-IDS2017 (Univ. New Brunswick, 2017)",
+        "attacks": "Web Attack Brute Force, XSS, SQL Injection",
+    },
 }
 
 # Performances de reference (entrainement sur CIC-Darknet2020, 122 000 sessions)
@@ -40,18 +53,16 @@ def render(models, session_features, config):
         <p style="margin: 0;">
             Test d'un modele <strong>Random Forest</strong> (27 features, F1 = 0.995 a l'entrainement)
             sur du trafic reseau chiffre <strong>jamais vu</strong> pendant l'entrainement.<br>
-            <em>Donnees : CIC-Darknet2020 — jeu de test (sessions TCP/UDP benignes et malveillantes)</em>
+            <em>Choisissez un dataset ci-dessous pour evaluer les performances du modele.</em>
         </p>
     </div>
     """, unsafe_allow_html=True)
 
     # Auto-load default dataset if nothing is loaded
     if "data" not in st.session_state or "probas" not in st.session_state:
-        _load_csv_dataset(
-            "external_test_sample.csv",
-            "Mix equilibre — 1 000 sessions (CIC-Darknet2020, jeu de test)",
-        )
-        st.session_state["_loaded_dataset"] = "external_test_sample.csv"
+        default = DATASETS[list(DATASETS.keys())[0]]
+        _load_csv_dataset(default["file"], default["label"], default.get("features", 27))
+        st.session_state["_loaded_dataset"] = default["file"]
 
     if "data" not in st.session_state or "probas" not in st.session_state:
         st.error("Impossible de charger le dataset par defaut.")
@@ -63,11 +74,14 @@ def render(models, session_features, config):
         list(DATASETS.keys()),
         key="dataset_selector",
     )
-    fname, label = DATASETS[selected]
-    if st.session_state.get("_loaded_dataset") != fname:
-        _load_csv_dataset(fname, label)
-        st.session_state["_loaded_dataset"] = fname
+    ds = DATASETS[selected]
+    if st.session_state.get("_loaded_dataset") != ds["file"]:
+        _load_csv_dataset(ds["file"], ds["label"], ds.get("features", 27))
+        st.session_state["_loaded_dataset"] = ds["file"]
         st.rerun()
+
+    # Info sur le dataset selectionne
+    st.caption(f"Source : {ds['source']} | Attaques : {ds['attacks']} | Features : {ds['features']}/27")
 
     # Resultats d'analyse
     _render_analysis(models, session_features, config)
@@ -87,7 +101,7 @@ def render(models, session_features, config):
                 st.rerun()
 
 
-def _load_csv_dataset(filename, source_label):
+def _load_csv_dataset(filename, source_label, n_features=27):
     """Charge un CSV depuis data/, lance les predictions, retourne True si succes."""
     path = os.path.join(APP_DIR, "data", filename)
     if not os.path.exists(path):
@@ -97,7 +111,7 @@ def _load_csv_dataset(filename, source_label):
     df = pd.read_csv(path, low_memory=False)
     st.session_state["data"] = df
     st.session_state["data_source"] = source_label
-    st.session_state["feature_quality"] = {"total": 27, "available": 27}
+    st.session_state["feature_quality"] = {"total": 27, "available": n_features}
 
     from src.models import load_feature_mapping, SESSION_MAPPING_PATH
     session_features = load_feature_mapping(SESSION_MAPPING_PATH)
@@ -655,10 +669,19 @@ def _render_performance_metrics(preds, probas):
     st.markdown("---")
     st.subheader("Performance du modele")
 
+    fq = st.session_state.get("feature_quality", {})
+    n_feat = fq.get("available", 27)
+    feat_note = ""
+    if n_feat < 27:
+        feat_note = (
+            f" <strong>Note</strong> : ce dataset n'est pas au format natif du modele — "
+            f"seules <strong>{n_feat}/27 features</strong> sont disponibles, "
+            f"ce qui peut degrader les performances."
+        )
     explain(
         "Comparaison des performances sur ce dataset (donnees <strong>jamais vues</strong>) "
         "avec les performances obtenues pendant l'<strong>entrainement</strong> "
-        "(122 000 sessions CIC-Darknet2020)."
+        f"(122 000 sessions CIC-Darknet2020).{feat_note}"
     )
 
     # Tableau comparatif
