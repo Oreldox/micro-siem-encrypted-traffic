@@ -30,12 +30,28 @@ DATASETS = {
         "attacks": "25 familles de malwares (trojans, ransomware, botnets)",
         "encrypted": True,
     },
-    "USTC-TFC2016 — 1 000 sessions (malwares reels : Zeus, Tinba, Geodo, Miuref)": {
+    "USTC-TFC2016 — Zeus, Tinba, Geodo, Miuref": {
         "file": "sample_ustc_tfc2016.csv",
-        "label": "USTC-TFC2016 — 1 000 sessions (500 benignes + 500 malwares reels)",
+        "label": "USTC-TFC2016 — 1 000 sessions (500 benignes + 500 malwares)",
         "features": 27,
         "source": "USTC-TFC2016 (Univ. Science & Technology of China, 2016)",
         "attacks": "Zeus (trojan), Tinba (banking), Geodo (botnet), Miuref (backdoor)",
+        "encrypted": True,
+    },
+    "USTC-TFC2016 — Cridex, Virut": {
+        "file": "sample_ustc_cridex_virut.csv",
+        "label": "USTC-TFC2016 — 1 000 sessions (500 benignes + 250 Cridex + 250 Virut)",
+        "features": 27,
+        "source": "USTC-TFC2016 (Univ. Science & Technology of China, 2016)",
+        "attacks": "Cridex (trojan bancaire), Virut (virus polymorphe)",
+        "encrypted": True,
+    },
+    "USTC-TFC2016 — Htbot, Neris": {
+        "file": "sample_ustc_htbot_neris.csv",
+        "label": "USTC-TFC2016 — 1 000 sessions (500 benignes + 250 Htbot + 250 Neris)",
+        "features": 27,
+        "source": "USTC-TFC2016 (Univ. Science & Technology of China, 2016)",
+        "attacks": "Htbot (botnet HTTP), Neris (botnet spam/DDoS)",
         "encrypted": True,
     },
 }
