@@ -46,14 +46,6 @@ DATASETS = {
         "attacks": "Zeus (trojan), Tinba (banking), Geodo (botnet), Miuref (backdoor)",
         "encrypted": True,
     },
-    "CIC-Darknet2020 VPN/Tor — 1 000 sessions (tunneling chiffre legitime)": {
-        "file": "sample_darknet2020_vpntor.csv",
-        "label": "CIC-Darknet2020 VPN/Tor — 1 000 sessions (500 normales + 500 VPN/Tor)",
-        "features": 19,
-        "source": "CIC-Darknet2020 (Univ. New Brunswick, 2020)",
-        "attacks": "Trafic VPN/Tor legitime (Browsing, Chat, P2P, Streaming)",
-        "encrypted": True,
-    },
 }
 
 TRAINING_REF = {
@@ -100,6 +92,9 @@ def render(models, session_features, config):
         f"Source : {ds['source']} | Attaques : {ds['attacks']} | "
         f"Features : {ds['features']}/27"
     )
+
+    # === Encart differences par rapport a l'entrainement ===
+    _render_training_diff(ds, config)
 
     # === Resultats ===
     _render_results(models, session_features, config, ds)
@@ -304,6 +299,35 @@ def _run_predictions(session_features):
 
 
 # =========================================================================
+# ENCART DIFFERENCES PAR RAPPORT A L'ENTRAINEMENT
+# =========================================================================
+
+def _render_training_diff(ds_info, config):
+    """Affiche un encart si les conditions different de l'entrainement."""
+    diffs = []
+    is_training_data = "external_test_sample" in ds_info.get("file", "") or "demo_sample" in ds_info.get("file", "")
+
+    n_feat = ds_info.get("features", 27)
+    if n_feat < 27:
+        diffs.append(f"**Features** : {n_feat}/27 disponibles (8 features manquantes mises a zero)")
+
+    if not is_training_data:
+        diffs.append(f"**Source** : dataset externe (entrainement = CIC-Darknet2020)")
+
+    threshold = config.get("threshold", 0.5)
+    if threshold != 0.5:
+        diffs.append(f"**Seuil** : {threshold} (entrainement = 0.5)")
+
+    if diffs:
+        diff_text = "<br>".join([f"- {d}" for d in diffs])
+        st.markdown(
+            f'<div class="metric-card"><h3>Differences par rapport a l\'entrainement</h3>'
+            f'<div style="text-align:left;font-size:0.9em;">{diff_text}</div></div>',
+            unsafe_allow_html=True,
+        )
+
+
+# =========================================================================
 # AFFICHAGE DES RESULTATS
 # =========================================================================
 
@@ -320,19 +344,31 @@ def _render_results(models, session_features, config, ds_info):
 
     n_total = len(df)
     n_alerts = int(preds.sum())
-    n_high = int((probas >= 0.8).sum())
 
-    # --- Metriques rapides ---
+    # --- Verite terrain (si labels) ---
+    if has_labels:
+        n_real_mal = int(y_true.sum())
+        n_real_ben = n_total - n_real_mal
+        st.markdown("---")
+        st.subheader("Composition du dataset")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            render_metric_card("Sessions totales", f"{n_total:,}", "blue")
+        with col2:
+            render_metric_card("Benignes (reel)", f"{n_real_ben:,}", "green")
+        with col3:
+            render_metric_card("Malveillantes (reel)", f"{n_real_mal:,}", "red")
+
+    # --- Predictions du modele ---
     st.markdown("---")
-    col1, col2, col3, col4 = st.columns(4)
+    st.subheader("Predictions du modele")
+    col1, col2, col3 = st.columns(3)
     with col1:
-        render_metric_card("Sessions", f"{n_total:,}", "blue")
+        render_metric_card("Predites benignes", f"{n_total - n_alerts:,}", "green")
     with col2:
-        render_metric_card("Benignes", f"{n_total - n_alerts:,}", "green")
+        render_metric_card("Predites malveillantes", f"{n_alerts:,}", "red" if n_alerts > 0 else "green")
     with col3:
-        render_metric_card("Alertes", f"{n_alerts:,}", "red" if n_alerts > 0 else "green")
-    with col4:
-        render_metric_card("Critiques (P>0.8)", f"{n_high:,}", "yellow")
+        render_metric_card("Seuil", f"{threshold}", "blue")
 
     # --- Performance (si labels) ---
     if has_labels:
@@ -508,19 +544,7 @@ def _render_performance(preds, probas, y_true, ds_info):
         ds_file = ds_info.get("file", "")
         reasons = []
 
-        if "vpntor" in ds_file:
-            reasons.append(
-                "**Trafic tunnel legitime** : ce dataset contient du trafic VPN et Tor "
-                "utilise pour des activites normales (navigation, chat, streaming). "
-                "Le modele classe correctement ces sessions comme benignes — "
-                "il ne produit **pas de faux positifs** sur du tunneling chiffre legitime."
-            )
-            reasons.append(
-                "**Absence de malware** : le label \"darknet\" ici designe le type de "
-                "tunnel (VPN/Tor), pas un comportement malveillant. Le modele est entraine "
-                "a detecter des *patterns de malware*, pas le simple usage d'un tunnel."
-            )
-        elif "ustc" in ds_file:
+        if "ustc" in ds_file:
             reasons.append(
                 "**Distribution de features differente** : bien que les 27/27 features "
                 "soient presentes, les valeurs sont extraites par un processus different "
