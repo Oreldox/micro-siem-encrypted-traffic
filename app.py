@@ -8,7 +8,7 @@ import numpy as np
 
 # === PAGE CONFIG (doit etre le premier appel Streamlit) ===
 st.set_page_config(
-    page_title="Micro-SIEM | Trafic Chiffre",
+    page_title="Analyse Trafic Chiffre",
     page_icon="\U0001f6e1\ufe0f",
     layout="wide",
     initial_sidebar_state="expanded"
