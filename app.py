@@ -73,8 +73,6 @@ pages = {
     ],
     "Tester le modele": [
         st.Page(page_tester, title="Tester le modele", icon=":material/science:"),
-        st.Page(page_detail, title="Analyse detaillee", icon=":material/search:"),
-        st.Page(page_shap, title="Explicabilite SHAP", icon=":material/insights:"),
     ],
     "Parametres": [
         st.Page(page_config, title="Configuration", icon=":material/settings:"),
