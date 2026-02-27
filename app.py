@@ -29,8 +29,8 @@ session_features = load_feature_mapping(SESSION_MAPPING_PATH)
 packet_features = load_feature_mapping(PACKET_MAPPING_PATH)
 
 # === SIDEBAR ===
-st.sidebar.markdown('<div class="sidebar-title">\U0001f6e1\ufe0f Micro-SIEM</div>', unsafe_allow_html=True)
-st.sidebar.markdown('<div class="sidebar-subtitle">Classification du trafic chiffre</div>',
+st.sidebar.markdown('<div class="sidebar-title">\U0001f6e1\ufe0f Analyse Trafic Chiffre</div>', unsafe_allow_html=True)
+st.sidebar.markdown('<div class="sidebar-subtitle">Detection de trafic malveillant par ML</div>',
                     unsafe_allow_html=True)
 
 st.sidebar.markdown("**Analyse**")
@@ -86,7 +86,7 @@ if n_corrections > 0:
     st.sidebar.caption(f"Corrections manuelles : {n_corrections}")
 
 st.sidebar.divider()
-st.sidebar.caption("Micro-SIEM v5.0 | Loris Dietrich")
+st.sidebar.caption("Analyse Trafic Chiffre v5.0 | Loris Dietrich")
 
 # === ROUTING ===
 if page == "Vue d'ensemble":

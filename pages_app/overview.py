@@ -31,7 +31,7 @@ def _render_landing_page():
 
     st.markdown("""
     <div class="hero-banner">
-        <h1>Micro-SIEM &mdash; Trafic Chiffre</h1>
+        <h1>Analyse Trafic Chiffre</h1>
         <p>Detectez le trafic reseau malveillant (C2, exfiltration, ransomware)
         a partir des metadonnees de connexion, <strong>sans dechiffrer le contenu</strong>.</p>
     </div>
