@@ -93,7 +93,10 @@ def render_metric_card(title, value, color="blue"):
 
 
 def load_demo_data():
-    """Charge les donnees de demo dans session_state et lance les predictions."""
+    """Charge les donnees de demo dans session_state et lance les predictions.
+
+    Pipeline complet : RF + XGBoost + confiance + qualite + seuil recommande.
+    """
     from src.models import DEMO_DATA_PATH, load_models, load_feature_mapping, SESSION_MAPPING_PATH
 
     if not os.path.exists(DEMO_DATA_PATH):
@@ -103,6 +106,7 @@ def load_demo_data():
     df = pd.read_csv(DEMO_DATA_PATH, low_memory=False)
     st.session_state["data"] = df
     st.session_state["data_source"] = "Demo : 5 000 sessions CIC-Darknet2020"
+    st.session_state["feature_quality"] = {"total": 27, "available": 27}
 
     # Lancer les predictions immediatement
     models, _ = load_models()
@@ -110,20 +114,52 @@ def load_demo_data():
 
     if "rf_session" in models:
         X = np.nan_to_num(df[session_features].values.astype(float), nan=0.0)
-        probas = models["rf_session"].predict_proba(X)[:, 1]
-        preds = (probas >= 0.5).astype(int)
 
-        st.session_state["probas"] = probas
+        # RF principal
+        probas_rf = models["rf_session"].predict_proba(X)[:, 1]
+        preds = (probas_rf >= 0.5).astype(int)
+
+        st.session_state["probas"] = probas_rf
         st.session_state["preds"] = preds
         st.session_state["preds_rf"] = preds
         st.session_state["if_preds"] = None
         st.session_state["if_scores"] = None
         st.session_state["X"] = X
 
+        # XGBoost (accord inter-modeles)
+        probas_xgb = None
+        if "xgboost" in models:
+            try:
+                probas_xgb = models["xgboost"].predict_proba(X)[:, 1]
+                st.session_state["probas_xgb"] = probas_xgb
+            except Exception:
+                pass
+
+        # Score de confiance
+        from src.confidence import compute_confidence_scores
+        fq = st.session_state.get("feature_quality")
+        confidence = compute_confidence_scores(
+            probas_rf, probas_xgb=probas_xgb, feature_quality=fq
+        )
+        st.session_state["confidence"] = confidence
+
+        # Seuil recommande (demo = 27/27 features → 0.5)
+        st.session_state["recommended_threshold"] = 0.5
+
         if "label" in df.columns:
             st.session_state["y_true"] = df["label"].values.astype(int)
 
     return True
+
+
+def is_demo_data():
+    """True si les donnees chargees sont la demo labelisee."""
+    return st.session_state.get("data_source", "").startswith("Demo")
+
+
+def has_labels():
+    """True si les donnees chargees contiennent des labels (verite terrain)."""
+    return "y_true" in st.session_state
 
 
 def require_data(page_description=""):

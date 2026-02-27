@@ -1,9 +1,10 @@
 """
-Micro-SIEM Dashboard V2 — Classification du trafic reseau chiffre.
+Micro-SIEM Dashboard V5 — Classification du trafic reseau chiffre.
 Point d'entree principal : routing, sidebar, configuration globale.
 """
 
 import streamlit as st
+import numpy as np
 
 # === PAGE CONFIG (doit etre le premier appel Streamlit) ===
 st.set_page_config(
@@ -32,11 +33,17 @@ st.sidebar.markdown('<div class="sidebar-title">\U0001f6e1\ufe0f Micro-SIEM</div
 st.sidebar.markdown('<div class="sidebar-subtitle">Classification du trafic chiffre</div>',
                     unsafe_allow_html=True)
 
+st.sidebar.markdown("**Analyse**")
 page = st.sidebar.radio("Navigation", [
     "Vue d'ensemble",
+    "Test externe",
     "Analyse detaillee",
     "Mode cascade",
-    "Projection UMAP",
+    "Projection",
+    "SHAP Global",
+    "Faux negatifs",
+    "Clustering",
+    "Methodologie",
     "Configuration",
     "Statistiques",
     "A propos"
@@ -54,12 +61,40 @@ use_if = st.sidebar.toggle("Isolation Forest", False, key="sidebar_if",
 
 config = {"threshold": threshold, "use_if": use_if}
 
+# === COMPTEUR D'ALERTES EN TEMPS REEL ===
+if "probas" in st.session_state:
+    st.sidebar.divider()
+    probas_live = st.session_state["probas"]
+    n_alerts_rf = int((probas_live >= threshold).sum())
+
+    if use_if and st.session_state.get("if_preds") is not None:
+        if_preds_live = st.session_state["if_preds"]
+        n_if = int(if_preds_live.sum())
+        n_if_only = int(((if_preds_live == 1) & ((probas_live >= threshold) == False)).sum())
+        n_total = int(((probas_live >= threshold) | (if_preds_live == 1)).sum())
+        st.sidebar.metric("Alertes totales", f"{n_total}")
+        st.sidebar.caption(f"RF : {n_alerts_rf} | IF : +{n_if_only}")
+    elif use_if:
+        st.sidebar.metric("Alertes RF", f"{n_alerts_rf}")
+        st.sidebar.caption("IF active — allez sur Vue d'ensemble pour calculer")
+    else:
+        st.sidebar.metric("Alertes", f"{n_alerts_rf}")
+
+# Corrections utilisateur
+n_corrections = len(st.session_state.get("user_corrections", {}))
+if n_corrections > 0:
+    st.sidebar.caption(f"Corrections manuelles : {n_corrections}")
+
 st.sidebar.divider()
-st.sidebar.caption("Micro-SIEM v2.0 | Loris Dietrich")
+st.sidebar.caption("Micro-SIEM v5.0 | Loris Dietrich")
 
 # === ROUTING ===
 if page == "Vue d'ensemble":
     from pages_app.overview import render
+    render(models, session_features, config)
+
+elif page == "Test externe":
+    from pages_app.external_test import render
     render(models, session_features, config)
 
 elif page == "Analyse detaillee":
@@ -70,9 +105,25 @@ elif page == "Mode cascade":
     from pages_app.cascade import render
     render(models, session_features, packet_features, config)
 
-elif page == "Projection UMAP":
+elif page == "Projection":
     from pages_app.visualization import render
     render(models, session_features, config)
+
+elif page == "SHAP Global":
+    from pages_app.shap_global import render
+    render(models, session_features, config)
+
+elif page == "Faux negatifs":
+    from pages_app.false_negatives import render
+    render(models, session_features, config)
+
+elif page == "Clustering":
+    from pages_app.clustering import render
+    render(models, session_features, config)
+
+elif page == "Methodologie":
+    from pages_app.methodology import render
+    render()
 
 elif page == "Configuration":
     from pages_app.config import render

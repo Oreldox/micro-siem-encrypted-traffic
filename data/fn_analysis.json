@@ -1,0 +1,87 @@
+{
+  "summary": {
+    "fn_count": 511,
+    "tp_count": 60348,
+    "total_malicious": 60859,
+    "fn_rate": 0.84
+  },
+  "confidence": {
+    "fn_mean_proba": 0.311,
+    "fn_median_proba": 0.339,
+    "fn_min_proba": 0.005,
+    "fn_max_proba": 0.498,
+    "tp_mean_proba": 0.991,
+    "tp_median_proba": 0.996,
+    "tp_min_proba": 0.501,
+    "tp_max_proba": 1.0
+  },
+  "top_features_diff": [
+    {
+      "feature": "max_Interval_of_arrival_time_of_backward_traffic_enc",
+      "diff_pct": 203.3,
+      "interpretation": "Intervalles d'arrivee beaucoup plus longs"
+    },
+    {
+      "feature": "std_TCP_windows_size_value_backward_traffic_ratio",
+      "diff_pct": 118.1,
+      "interpretation": "Taille TCP windows plus variable"
+    },
+    {
+      "feature": "std_forward_packet_length_enc",
+      "diff_pct": 108.2,
+      "interpretation": "Longueur paquets plus variable"
+    },
+    {
+      "feature": "max_Change_values_of_TCP_windows_length_per_session",
+      "diff_pct": 88.2,
+      "interpretation": "Plus de changements TCP dynamiques"
+    },
+    {
+      "feature": "meidan_length_of_IP_packet_ratio",
+      "diff_pct": 62.0,
+      "interpretation": "Paquets IP plus grands"
+    },
+    {
+      "feature": "median_forward_packet_length_ratio",
+      "diff_pct": 39.5,
+      "interpretation": "Paquets forward plus grands"
+    },
+    {
+      "feature": "std_Length_of_TCP_packet_header",
+      "diff_pct": -37.1,
+      "interpretation": "Headers TCP plus uniformes"
+    },
+    {
+      "feature": "flow_duration_of_backward_traffic_ratio",
+      "diff_pct": 30.9,
+      "interpretation": "Durees de flux plus longues"
+    },
+    {
+      "feature": "max_Interval_of_arrival_time_of_backward_traffic_ratio",
+      "diff_pct": 30.7,
+      "interpretation": "Intervalles IAT plus longs"
+    },
+    {
+      "feature": "std_forward_packet_length_ratio",
+      "diff_pct": 28.3,
+      "interpretation": "Paquets forward plus varies"
+    }
+  ],
+  "profiles": {
+    "tp": {
+      "label": "Malware detecte (VP)",
+      "proba": 0.991,
+      "description": "Paquets petits et uniformes, intervalles courts et reguliers, comportement automatise"
+    },
+    "fn": {
+      "label": "Malware rate (FN)",
+      "proba": 0.311,
+      "description": "Gros paquets, taille variable, longs intervalles, imite le comportement humain"
+    },
+    "benign": {
+      "label": "Trafic benin",
+      "proba": 0.012,
+      "description": "Gros paquets, taille variable, longs intervalles, navigation web, streaming"
+    }
+  }
+}

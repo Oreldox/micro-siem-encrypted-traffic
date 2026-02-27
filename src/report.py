@@ -8,15 +8,24 @@ import pandas as pd
 from datetime import datetime
 
 
-def generate_csv_report(df, probas, preds, session_features):
-    """Genere un CSV avec toutes les colonnes + probabilite + verdict."""
+def generate_csv_report(df, probas, preds, session_features,
+                        confidence=None, corrections=None):
+    """Genere un CSV avec toutes les colonnes + probabilite + verdict + confiance."""
     df_export = df.copy()
     df_export["probabilite_malveillance"] = probas
     df_export["verdict"] = np.where(preds == 1, "SUSPECT", "Benin")
+    if confidence is not None:
+        df_export["confiance"] = confidence
+    if corrections:
+        df_export["correction_manuelle"] = pd.Series(
+            {i: c for i, c in corrections.items()}, dtype="object"
+        ).reindex(df_export.index, fill_value="")
     return df_export.to_csv(index=False).encode("utf-8")
 
 
-def generate_pdf_report(df, probas, preds, config, session_features, y_true=None):
+def generate_pdf_report(df, probas, preds, config, session_features,
+                        y_true=None, if_preds=None,
+                        confidence=None, probas_xgb=None, feature_quality=None):
     """Genere un rapport PDF complet avec metriques et graphiques."""
     from fpdf import FPDF
     import matplotlib
@@ -47,6 +56,27 @@ def generate_pdf_report(df, probas, preds, config, session_features, y_true=None
     pdf.cell(0, 7, f"Sessions analysees : {n_total:,}", ln=True)
     pdf.cell(0, 7, f"Alertes (suspectes) : {n_alerts:,} ({100*n_alerts/n_total:.1f}%)", ln=True)
     pdf.cell(0, 7, f"Alertes critiques (P>0.8) : {n_high:,}", ln=True)
+
+    # Qualite des donnees
+    if feature_quality is not None:
+        fq_avail = feature_quality.get("available", 27)
+        pdf.cell(0, 7, f"Qualite des donnees : {fq_avail}/27 features", ln=True)
+
+    # Confiance moyenne
+    if confidence is not None:
+        mean_conf = float(np.mean(confidence))
+        pdf.cell(0, 7, f"Confiance moyenne : {mean_conf:.0%}", ln=True)
+
+    # Accord inter-modeles
+    if probas_xgb is not None:
+        agreement = float(((probas >= 0.5) == (probas_xgb >= 0.5)).mean())
+        pdf.cell(0, 7, f"Accord RF/XGBoost : {agreement:.1%}", ln=True)
+
+    # Info IF
+    if if_preds is not None:
+        n_if = int(if_preds.sum())
+        n_if_only = int(((if_preds == 1) & (preds == 0)).sum())
+        pdf.cell(0, 7, f"Anomalies IF : {n_if:,} ({n_if_only:,} exclusives IF)", ln=True)
 
     # Metriques de performance si labels disponibles
     if y_true is not None:
@@ -95,9 +125,15 @@ def generate_pdf_report(df, probas, preds, config, session_features, y_true=None
     pdf.cell(0, 10, "Top 20 sessions les plus suspectes", ln=True)
 
     top_idx = np.argsort(probas)[::-1][:20]
+
+    if y_true is not None:
+        col_widths = [15, 30, 25, 25]
+        headers = ["#", "Probabilite", "Verdict", "Label reel"]
+    else:
+        col_widths = [15, 35, 30]
+        headers = ["#", "Probabilite", "Verdict"]
+
     pdf.set_font("Helvetica", "B", 8)
-    col_widths = [15, 30, 25, 25]
-    headers = ["#", "Probabilite", "Verdict", "Label reel"]
     for i, h in enumerate(headers):
         pdf.cell(col_widths[i], 7, h, border=1, align="C")
     pdf.ln()
@@ -110,9 +146,7 @@ def generate_pdf_report(df, probas, preds, config, session_features, y_true=None
         pdf.cell(col_widths[2], 6, verdict, border=1, align="C")
         if y_true is not None:
             label = "Malveillant" if y_true[idx] == 1 else "Benin"
-        else:
-            label = "-"
-        pdf.cell(col_widths[3], 6, label, border=1, align="C")
+            pdf.cell(col_widths[3], 6, label, border=1, align="C")
         pdf.ln()
 
     # --- Matrice de confusion (si labels) ---

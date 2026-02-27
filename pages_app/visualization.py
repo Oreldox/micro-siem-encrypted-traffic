@@ -1,105 +1,86 @@
 """
-Page 4 : Projection UMAP — Visualisation 2D des clusters de sessions.
+Page 4 : Projection — Visualisation 2D des clusters (PCA ou UMAP automatique).
 """
 
 import os
 import streamlit as st
 import numpy as np
 
-from src.ui_components import explain, render_metric_card
+from src.ui_components import explain, render_metric_card, is_demo_data, has_labels
 from src.models import UMAP_EMBEDDING_PATH
-from src.projection import load_precomputed_embedding, compute_umap_embedding, create_projection_figure
+from src.projection import load_precomputed_embedding, compute_projection_embedding, create_projection_figure
 
 
 def render(models, session_features, config):
-    st.header("Projection UMAP des sessions")
+    st.header("Projection des sessions")
 
     explain(
-        "<strong>UMAP</strong> (Uniform Manifold Approximation and Projection) projette les sessions "
-        "en 2 dimensions tout en preservant la structure des donnees. "
+        "La projection reduit les 27 dimensions des features en <strong>2 dimensions</strong> "
+        "tout en preservant la structure des donnees. "
         "Les sessions similaires se retrouvent proches, formant des <strong>clusters</strong> visuels. "
-        "Cela permet d'identifier des familles de malwares et de reperer les faux negatifs."
+        "Methode : <strong>PCA</strong> (< 50 sessions, instantane) ou <strong>UMAP</strong> (>= 50 sessions)."
     )
 
-    # --- Choix de la source ---
+    from src.ui_components import require_data
+    if not require_data("Visualisez les sessions en 2D pour identifier les clusters."):
+        return
+
     st.markdown("---")
 
-    has_data = "probas" in st.session_state and "X" in st.session_state
-    has_precomputed = os.path.exists(UMAP_EMBEDDING_PATH)
+    X = st.session_state["X"]
+    probas = st.session_state["probas"]
+    preds = st.session_state["preds"]
+    labels = st.session_state.get("y_true")
 
-    if has_precomputed:
-        source = st.radio(
-            "Source de la projection",
-            ["Embedding pre-calcule (demo, instantane)", "Calculer a la volee (donnees chargees)"],
-            horizontal=True,
-            help="L'embedding pre-calcule utilise les 5000 sessions de demo. Le calcul a la volee prend 30-60s."
-        )
-        use_precomputed = source.startswith("Embedding")
-    else:
-        use_precomputed = False
-        if not has_data:
-            st.warning("Chargez des donnees dans **Vue d'ensemble** pour utiliser la projection UMAP.")
-            return
+    # --- Auto-detect : demo -> precomputed, sinon -> compute ---
+    if is_demo_data() and os.path.exists(UMAP_EMBEDDING_PATH):
+        embedding, embed_labels = load_precomputed_embedding(UMAP_EMBEDDING_PATH)
 
-    # --- Charger ou calculer l'embedding ---
-    if use_precomputed:
-        embedding, labels = load_precomputed_embedding(UMAP_EMBEDDING_PATH)
-
-        # On a besoin des probas pour la colorisation — charger les donnees demo si pas deja fait
-        if has_data:
-            probas = st.session_state["probas"]
-            preds = st.session_state["preds"]
-            if len(probas) != len(embedding):
-                probas = None
-                preds = None
+        if len(probas) == len(embedding):
+            labels = embed_labels
         else:
             probas = None
             preds = None
+            labels = embed_labels
 
+        method = "UMAP"
         n_points = len(embedding)
-        st.caption(f"Embedding pre-calcule : {n_points} sessions")
-
+        st.caption(f"Projection UMAP pre-calculee : {n_points:,} sessions (demo)")
     else:
-        if not has_data:
-            st.warning("Chargez des donnees dans **Vue d'ensemble** d'abord.")
+        n = len(X)
+        if n < 3:
+            st.warning("Trop peu de sessions pour une projection (minimum 3).")
             return
 
-        X = st.session_state["X"]
-        probas = st.session_state["probas"]
-        preds = st.session_state["preds"]
-        labels = st.session_state.get("y_true")
-
-        n_points = len(X)
-        if n_points > 10000:
-            st.warning(f"Les donnees contiennent {n_points:,} sessions. UMAP sera calcule sur un echantillon de 10 000.")
-
-        if st.button("Calculer la projection UMAP", type="primary"):
-            with st.spinner(f"Calcul UMAP sur {min(n_points, 10000)} sessions... (30-60 secondes)"):
-                embedding, indices = compute_umap_embedding(X, max_samples=10000)
-                st.session_state["umap_embedding"] = embedding
-                st.session_state["umap_indices"] = indices
-        elif "umap_embedding" in st.session_state:
+        # Verifier le cache
+        cache_key = f"projection_{n}"
+        if st.session_state.get("projection_cache_key") == cache_key and "umap_embedding" in st.session_state:
             embedding = st.session_state["umap_embedding"]
             indices = st.session_state["umap_indices"]
+            method = st.session_state.get("projection_method", "PCA")
         else:
-            st.info("Cliquez sur le bouton pour lancer le calcul UMAP.")
-            return
+            method_hint = "PCA (instantane)" if n < 50 else f"UMAP ({n:,} sessions)"
+            with st.spinner(f"Calcul de la projection {method_hint}..."):
+                embedding, indices, method = compute_projection_embedding(X)
+                st.session_state["umap_embedding"] = embedding
+                st.session_state["umap_indices"] = indices
+                st.session_state["projection_method"] = method
+                st.session_state["projection_cache_key"] = cache_key
 
-        # Sous-echantillonner les labels/probas/preds si necessaire
-        if "umap_indices" in st.session_state:
-            indices = st.session_state["umap_indices"]
-            if labels is not None:
-                labels = labels[indices]
-            probas = probas[indices]
-            preds = preds[indices]
+        # Sous-echantillonner si necessaire
+        indices = st.session_state["umap_indices"]
+        if labels is not None:
+            labels = labels[indices]
+        probas = probas[indices]
+        preds = preds[indices]
         n_points = len(embedding)
+        st.caption(f"Projection {method} : {n_points:,} sessions")
 
     # --- Options de visualisation ---
     st.markdown("---")
     col1, col2 = st.columns(2)
 
     with col1:
-        color_options = ["label", "proba", "verdict"]
         color_labels = {
             "label": "Label reel (benin/malveillant)",
             "proba": "Probabilite RF (gradient)",
@@ -111,7 +92,7 @@ def render(models, session_features, config):
         if probas is not None:
             available.extend(["proba", "verdict"])
         if not available:
-            available = ["label"]
+            available = ["proba"]
 
         color_by = st.selectbox(
             "Coloriser par",
@@ -131,7 +112,8 @@ def render(models, session_features, config):
         preds=preds,
         probas=probas,
         color_by=color_by,
-        highlight_fn=show_fn
+        highlight_fn=show_fn,
+        method=method
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -146,6 +128,8 @@ def render(models, session_features, config):
             render_metric_card("Benignes", f"{n_benin:,}", "green")
         with col3:
             render_metric_card("Malveillantes", f"{n_mal:,}", "red")
+    else:
+        render_metric_card("Sessions projetees", f"{n_points:,}", "blue")
 
     if labels is not None and preds is not None:
         fn_count = int(((labels == 1) & (preds == 0)).sum())

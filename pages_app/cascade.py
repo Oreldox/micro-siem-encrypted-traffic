@@ -16,12 +16,17 @@ from src.cascade import identify_uncertain_sessions, cascade_analysis
 def render(models, session_features, packet_features, config):
     st.header("Mode cascade : Session puis Paquets")
 
+    st.markdown(
+        "Quand le modele session n'est pas sur de son verdict (probabilite entre 0.3 et 0.7), "
+        "le mode cascade descend au **niveau paquet** pour affiner. C'est comme demander un second avis medical."
+    )
+
     explain(
-        "Le mode cascade est une approche <strong>multi-granularite</strong>. "
-        "Le Random Forest session analyse d'abord toutes les sessions (27 features). "
-        "Pour celles dont la probabilite est <strong>incertaine</strong> (zone grise), "
-        "on descend au niveau paquet individuel avec un second modele RF (21 features, 99.98% accuracy). "
-        "Les predictions par paquet sont ensuite <strong>agregees</strong> pour donner un verdict final plus precis."
+        "**Comment ca marche :**\n"
+        "1. Le Random Forest session analyse toutes les sessions (27 features)\n"
+        "2. Les sessions dans la **zone d'incertitude** sont identifiees\n"
+        "3. Un second modele RF analyse les **paquets individuels** (21 features, 99.98% accuracy)\n"
+        "4. Les predictions par paquet sont **agregees** pour un verdict final plus fiable"
     )
 
     # Verifier que des donnees session sont chargees
@@ -32,9 +37,23 @@ def render(models, session_features, packet_features, config):
     probas = st.session_state["probas"]
     df_session = st.session_state["data"]
 
+    data_source = st.session_state.get("data_source", "")
+    is_pcap = data_source.startswith("PCAP")
+
     if "unique_link_mark" not in df_session.columns:
-        st.error("Les donnees session ne contiennent pas de colonne `unique_link_mark` pour lier les paquets.")
+        st.warning(
+            "Le mode cascade necessite une colonne `unique_link_mark` pour lier sessions et paquets. "
+            "Cette fonctionnalite est conue pour le dataset **CIC-Darknet2020**. "
+            "Utilisez les **donnees de demonstration** pour explorer le mode cascade."
+        )
         return
+
+    if is_pcap:
+        st.info(
+            "Le mode cascade fonctionne avec les donnees CIC-Darknet2020 (demo), "
+            "ou les donnees paquets doivent correspondre aux sessions chargees via `unique_link_mark`. "
+            "Les donnees PCAP importees ne sont pas compatibles avec les paquets de demonstration."
+        )
 
     # --- Configuration cascade ---
     st.markdown("---")

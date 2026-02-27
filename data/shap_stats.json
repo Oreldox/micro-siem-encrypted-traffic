@@ -1,0 +1,128 @@
+{
+  "config": {
+    "model": "XGBoost",
+    "method": "TreeExplainer",
+    "sample": 5000,
+    "compute_time": 2.2
+  },
+  "ranking": [
+    {
+      "rank": 1,
+      "feature": "max_Change_values_of_TCP_windows_length_per_session",
+      "mean_shap": 1.1101
+    },
+    {
+      "rank": 2,
+      "feature": "IPratio_ratio",
+      "mean_shap": 1.0824
+    },
+    {
+      "rank": 3,
+      "feature": "median_ttl_backward_traffic",
+      "mean_shap": 0.9812
+    },
+    {
+      "rank": 4,
+      "feature": "max_ttl_backward_traffic_enc",
+      "mean_shap": 0.9143
+    },
+    {
+      "rank": 5,
+      "feature": "min_ttl_forward_traffic",
+      "mean_shap": 0.5936
+    },
+    {
+      "rank": 6,
+      "feature": "std_Length_of_TCP_packet_header",
+      "mean_shap": 0.5021
+    },
+    {
+      "rank": 7,
+      "feature": "max_TCP_windows_size_value_forward_traffic_ratio",
+      "mean_shap": 0.3741
+    },
+    {
+      "rank": 8,
+      "feature": "max_Interval_of_arrival_time_of_backward_traffic_enc",
+      "mean_shap": 0.3223
+    },
+    {
+      "rank": 9,
+      "feature": "total_TCP_windows_size_value_forward_traffic_ratio",
+      "mean_shap": 0.319
+    },
+    {
+      "rank": 10,
+      "feature": "max_Interval_of_arrival_time_of_backward_traffic_ratio",
+      "mean_shap": 0.2354
+    }
+  ],
+  "shap_vs_gini": {
+    "overlap_top10": 8,
+    "shap_top10": [
+      "max_Change_values_of_TCP_windows_length_per_session",
+      "IPratio_ratio",
+      "median_ttl_backward_traffic",
+      "max_ttl_backward_traffic_enc",
+      "min_ttl_forward_traffic",
+      "std_Length_of_TCP_packet_header",
+      "max_TCP_windows_size_value_forward_traffic_ratio",
+      "max_Interval_of_arrival_time_of_backward_traffic_enc",
+      "total_TCP_windows_size_value_forward_traffic_ratio",
+      "max_Interval_of_arrival_time_of_backward_traffic_ratio"
+    ],
+    "gini_top10": [
+      "IPratio_ratio",
+      "max_TCP_windows_size_value_forward_traffic_ratio",
+      "max_Interval_of_arrival_time_of_backward_traffic_enc",
+      "median_ttl_backward_traffic",
+      "max_Change_values_of_TCP_windows_length_per_session",
+      "max_ttl_backward_traffic_enc",
+      "std_forward_packet_length_enc",
+      "IPratio_enc",
+      "std_Length_of_TCP_packet_header",
+      "total_TCP_windows_size_value_forward_traffic_ratio"
+    ]
+  },
+  "roc_auc": {
+    "auc": 0.999857,
+    "ap": 0.999865,
+    "youden_threshold": 0.3959,
+    "youden_tpr": 0.9947,
+    "youden_fpr": 0.0033,
+    "youden_specificity": 0.9967,
+    "youden_j": 0.9914,
+    "threshold_comparison": [
+      {
+        "threshold": 0.3,
+        "tpr": 0.9965,
+        "fpr": 0.0069,
+        "specificity": 0.9931
+      },
+      {
+        "threshold": 0.3959,
+        "tpr": 0.9947,
+        "fpr": 0.0033,
+        "specificity": 0.9967
+      },
+      {
+        "threshold": 0.5,
+        "tpr": 0.9916,
+        "fpr": 0.0016,
+        "specificity": 0.9984
+      },
+      {
+        "threshold": 0.6,
+        "tpr": 0.9875,
+        "fpr": 0.0008,
+        "specificity": 0.9992
+      },
+      {
+        "threshold": 0.7,
+        "tpr": 0.9823,
+        "fpr": 0.0003,
+        "specificity": 0.9997
+      }
+    ]
+  }
+}

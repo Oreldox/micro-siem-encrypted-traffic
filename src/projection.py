@@ -12,30 +12,48 @@ def load_precomputed_embedding(path):
     return data["embedding"], data["labels"]
 
 
-def compute_umap_embedding(X, n_neighbors=15, min_dist=0.1, max_samples=10000):
-    """Calcule UMAP a la volee (limite a max_samples points)."""
+def compute_projection_embedding(X, max_samples=10000):
+    """Calcule une projection 2D : PCA (< 50 sessions) ou UMAP (>= 50).
+
+    Retourne (embedding, indices, method_name).
+    """
     from sklearn.preprocessing import StandardScaler
-    import umap
 
     if len(X) > max_samples:
         indices = np.random.RandomState(42).choice(len(X), max_samples, replace=False)
-        X = X[indices]
+        X_sub = X[indices]
     else:
         indices = np.arange(len(X))
+        X_sub = X
 
     scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
+    X_scaled = scaler.fit_transform(X_sub)
+    n = len(X_scaled)
 
-    reducer = umap.UMAP(
-        n_components=2, n_neighbors=n_neighbors, min_dist=min_dist,
-        random_state=42, verbose=False
-    )
-    embedding = reducer.fit_transform(X_scaled)
+    if n < 50:
+        from sklearn.decomposition import PCA
+        reducer = PCA(n_components=min(2, X_scaled.shape[1]), random_state=42)
+        embedding = reducer.fit_transform(X_scaled)
+        return embedding, indices, "PCA"
+    else:
+        import umap
+        adjusted_neighbors = min(15, n - 1)
+        reducer = umap.UMAP(
+            n_components=2, n_neighbors=adjusted_neighbors, min_dist=0.1,
+            random_state=42, verbose=False
+        )
+        embedding = reducer.fit_transform(X_scaled)
+        return embedding, indices, "UMAP"
+
+
+def compute_umap_embedding(X, n_neighbors=15, min_dist=0.1, max_samples=10000):
+    """Deprecated — utiliser compute_projection_embedding()."""
+    embedding, indices, _ = compute_projection_embedding(X, max_samples)
     return embedding, indices
 
 
 def create_projection_figure(embedding, labels=None, preds=None, probas=None,
-                             color_by="label", highlight_fn=False):
+                             color_by="label", highlight_fn=False, method="UMAP"):
     """Cree un scatter plot Plotly interactif de la projection 2D."""
     fig = go.Figure()
 
@@ -114,8 +132,10 @@ def create_projection_figure(embedding, labels=None, preds=None, probas=None,
                 hoverinfo="text", name=f"Faux negatifs ({fn_mask.sum()})"
             ))
 
+    ax1 = f"{method} 1"
+    ax2 = f"{method} 2"
     fig.update_layout(
-        xaxis_title="UMAP 1", yaxis_title="UMAP 2",
+        xaxis_title=ax1, yaxis_title=ax2,
         template="plotly_dark", height=600,
         margin=dict(t=30, b=30),
         legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)

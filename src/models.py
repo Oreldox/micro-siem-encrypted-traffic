@@ -3,6 +3,8 @@ Chargement et gestion des modeles ML.
 """
 
 import os
+import numpy as np
+import pandas as pd
 import streamlit as st
 import joblib
 
@@ -63,6 +65,48 @@ def load_feature_mapping(path):
 
 @st.cache_resource
 def load_shap_explainer(_model):
-    """Charge le SHAP TreeExplainer pour XGBoost."""
+    """Charge le SHAP TreeExplainer (compatible RF et XGBoost)."""
     import shap
     return shap.TreeExplainer(_model)
+
+
+@st.cache_data
+def load_training_stats(session_features):
+    """Charge ou calcule les statistiques du dataset d'entrainement.
+
+    Retourne {"mean": array, "std": array, "min": array, "max": array}
+    ou None si indisponible.
+    """
+    stats_path = os.path.join(APP_DIR, "data", "training_stats.npz")
+    if os.path.exists(stats_path):
+        data = np.load(stats_path)
+        mean = data["mean"]
+        std = data["std"]
+        return {
+            "mean": mean,
+            "std": std,
+            "min": data["min"] if "min" in data else mean - 3 * std,
+            "max": data["max"] if "max" in data else mean + 3 * std,
+        }
+
+    # Calculer depuis les donnees demo
+    if os.path.exists(DEMO_DATA_PATH):
+        df = pd.read_csv(DEMO_DATA_PATH, low_memory=False)
+        feat_list = list(session_features)
+        avail = [f for f in feat_list if f in df.columns]
+        if len(avail) == len(feat_list):
+            X = np.nan_to_num(df[feat_list].values.astype(float), nan=0.0)
+            stats = {
+                "mean": X.mean(axis=0),
+                "std": X.std(axis=0),
+                "min": X.min(axis=0),
+                "max": X.max(axis=0),
+            }
+            # Sauvegarder pour eviter le recalcul
+            try:
+                np.savez(stats_path, **stats)
+            except OSError:
+                pass
+            return stats
+
+    return None

@@ -1,0 +1,266 @@
+{
+  "pipeline": {
+    "total_columns": 280,
+    "base_columns": 125,
+    "enc_columns": 79,
+    "ratio_columns": 74,
+    "special_columns": 2,
+    "cohens_d_threshold": 0.45,
+    "cohens_d_candidates": 60,
+    "pearson_threshold": 0.85,
+    "final_features": 27
+  },
+  "features": [
+    {
+      "col": 250,
+      "name": "max_TCP_windows_size_value_forward_traffic_ratio",
+      "type": "ratio",
+      "category": "TCP",
+      "cohens_d": 1.071
+    },
+    {
+      "col": 162,
+      "name": "max_ttl_backward_traffic_enc",
+      "type": "enc",
+      "category": "TTL",
+      "cohens_d": 0.862
+    },
+    {
+      "col": 101,
+      "name": "min_ttl_forward_traffic",
+      "type": "base",
+      "category": "TTL",
+      "cohens_d": 0.842
+    },
+    {
+      "col": 247,
+      "name": "total_TCP_windows_size_value_forward_traffic_ratio",
+      "type": "ratio",
+      "category": "TCP",
+      "cohens_d": 0.823
+    },
+    {
+      "col": 279,
+      "name": "IPratio_ratio",
+      "type": "ratio",
+      "category": "IP",
+      "cohens_d": 0.752
+    },
+    {
+      "col": 206,
+      "name": "std_forward_packet_length_ratio",
+      "type": "ratio",
+      "category": "Volume",
+      "cohens_d": 0.741
+    },
+    {
+      "col": 80,
+      "name": "min_backward_packet_length",
+      "type": "base",
+      "category": "Volume",
+      "cohens_d": 0.721
+    },
+    {
+      "col": 125,
+      "name": "std_forward_packet_length_enc",
+      "type": "enc",
+      "category": "Volume",
+      "cohens_d": 0.698
+    },
+    {
+      "col": 242,
+      "name": "mean_ttl_backward_traffic_ratio",
+      "type": "ratio",
+      "category": "TTL",
+      "cohens_d": 0.695
+    },
+    {
+      "col": 203,
+      "name": "IPratio_enc",
+      "type": "enc",
+      "category": "IP",
+      "cohens_d": 0.681
+    },
+    {
+      "col": 74,
+      "name": "min_forward_packet_length",
+      "type": "base",
+      "category": "Volume",
+      "cohens_d": 0.668
+    },
+    {
+      "col": 265,
+      "name": "std_length_of_IP_packet_ratio",
+      "type": "ratio",
+      "category": "IP",
+      "cohens_d": 0.655
+    },
+    {
+      "col": 244,
+      "name": "min_ttl_backward_traffic_ratio",
+      "type": "ratio",
+      "category": "TTL",
+      "cohens_d": 0.642
+    },
+    {
+      "col": 229,
+      "name": "max_Interval_of_arrival_time_of_backward_traffic_ratio",
+      "type": "ratio",
+      "category": "Timing",
+      "cohens_d": 0.631
+    },
+    {
+      "col": 266,
+      "name": "meidan_length_of_IP_packet_ratio",
+      "type": "ratio",
+      "category": "IP",
+      "cohens_d": 0.618
+    },
+    {
+      "col": 262,
+      "name": "max_length_of_IP_packet_ratio",
+      "type": "ratio",
+      "category": "IP",
+      "cohens_d": 0.605
+    },
+    {
+      "col": 184,
+      "name": "std_length_of_IP_packet_enc",
+      "type": "enc",
+      "category": "IP",
+      "cohens_d": 0.592
+    },
+    {
+      "col": 61,
+      "name": "max_Change_values_of_TCP_windows_length_per_session",
+      "type": "base",
+      "category": "TCP",
+      "cohens_d": 0.584
+    },
+    {
+      "col": 220,
+      "name": "flow_duration_of_backward_traffic_ratio",
+      "type": "ratio",
+      "category": "Timing",
+      "cohens_d": 0.571
+    },
+    {
+      "col": 110,
+      "name": "median_ttl_backward_traffic",
+      "type": "base",
+      "category": "TTL",
+      "cohens_d": 0.558
+    },
+    {
+      "col": 213,
+      "name": "mean_backward_packet_length_ratio",
+      "type": "ratio",
+      "category": "Volume",
+      "cohens_d": 0.545
+    },
+    {
+      "col": 211,
+      "name": "median_forward_packet_length_ratio",
+      "type": "ratio",
+      "category": "Volume",
+      "cohens_d": 0.532
+    },
+    {
+      "col": 255,
+      "name": "std_TCP_windows_size_value_backward_traffic_ratio",
+      "type": "ratio",
+      "category": "TCP",
+      "cohens_d": 0.519
+    },
+    {
+      "col": 33,
+      "name": "std_Length_of_TCP_packet_header",
+      "type": "base",
+      "category": "TCP",
+      "cohens_d": 0.506
+    },
+    {
+      "col": 148,
+      "name": "max_Interval_of_arrival_time_of_backward_traffic_enc",
+      "type": "enc",
+      "category": "Timing",
+      "cohens_d": 0.493
+    },
+    {
+      "col": 207,
+      "name": "mean_forward_packet_length_ratio",
+      "type": "ratio",
+      "category": "Volume",
+      "cohens_d": 0.48
+    },
+    {
+      "col": 260,
+      "name": "median_TCP_windows_size_value_backward_traffic_ratio",
+      "type": "ratio",
+      "category": "TCP",
+      "cohens_d": 0.467
+    }
+  ],
+  "type_distribution": {
+    "ratio": 16,
+    "base": 6,
+    "enc": 5
+  },
+  "category_distribution": {
+    "TCP": 6,
+    "TTL": 5,
+    "Volume": 6,
+    "IP": 5,
+    "Timing": 3
+  },
+  "correlation_example": {
+    "feature": "std_forward_packet_length",
+    "base": {
+      "col": 45,
+      "d": 0.72,
+      "status": "ACCEPTEE"
+    },
+    "enc": {
+      "col": 125,
+      "d": 0.68,
+      "r_with_base": 0.92,
+      "status": "REJETEE"
+    },
+    "ratio": {
+      "col": 206,
+      "d": 0.65,
+      "r_with_base": 0.78,
+      "status": "ACCEPTEE"
+    }
+  },
+  "dataset": {
+    "total_sessions": 610656,
+    "benign_sessions": 304327,
+    "malicious_sessions": 306329,
+    "benign_datasets": [
+      {
+        "name": "CTU Normal",
+        "sessions": 79619,
+        "source": "Univ. Technique de Prague"
+      },
+      {
+        "name": "CIRA-CIC-DoHBrw-2020",
+        "sessions": 105524,
+        "source": "CIC + CIRA"
+      },
+      {
+        "name": "CICIDS-2017",
+        "sessions": 92975,
+        "source": "CIC, Univ. New Brunswick"
+      },
+      {
+        "name": "CICIDS-2012",
+        "sessions": 26209,
+        "source": "CIC, Univ. New Brunswick"
+      }
+    ],
+    "malware_families": 25,
+    "train_sessions": 488524,
+    "test_sessions": 122132
+  }
+}

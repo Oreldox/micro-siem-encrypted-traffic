@@ -1,0 +1,47 @@
+{
+  "data": {
+    "total_malicious": 60859,
+    "sample_used": 20000,
+    "fn_count": 511
+  },
+  "kmeans": {
+    "optimal_k": 2,
+    "best_silhouette": 0.4718,
+    "silhouette_scores": {
+      "2": 0.4718,
+      "3": 0.3049,
+      "4": 0.3266,
+      "5": 0.3551,
+      "6": 0.3577,
+      "7": 0.3832,
+      "8": 0.3893,
+      "9": 0.4022,
+      "10": 0.3813
+    },
+    "clusters": [
+      {
+        "id": 0,
+        "sessions": 16169,
+        "pct": 80.8,
+        "fn": 458,
+        "fn_pct": 89.6,
+        "profile": "Malware 'standard' - TCP windows elevees, TTL similaire au benin"
+      },
+      {
+        "id": 1,
+        "sessions": 3831,
+        "pct": 19.2,
+        "fn": 53,
+        "fn_pct": 10.4,
+        "profile": "Malware 'agressif' - TCP windows basses, TTL tres different"
+      }
+    ]
+  },
+  "dbscan": {
+    "eps": 2.11,
+    "min_samples": 10,
+    "clusters": 22,
+    "noise_points": 362,
+    "noise_pct": 3.6
+  }
+}
