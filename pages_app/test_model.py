@@ -30,14 +30,6 @@ DATASETS = {
         "attacks": "25 familles de malwares (trojans, ransomware, botnets)",
         "encrypted": True,
     },
-    "HIKARI-2021 — 1 000 sessions (trafic HTTPS : Probing, Bruteforce, CryptoMiner)": {
-        "file": "sample_hikari2021.csv",
-        "label": "HIKARI-2021 — 1 000 sessions chiffrees (500 benignes + 500 attaques)",
-        "features": 19,
-        "source": "HIKARI-2021 (Zenodo/MDPI, 2021)",
-        "attacks": "Probing, Bruteforce HTTPS/XML, CryptoMiner XMRIGCC",
-        "encrypted": True,
-    },
     "USTC-TFC2016 — 1 000 sessions (malwares reels : Zeus, Tinba, Geodo, Miuref)": {
         "file": "sample_ustc_tfc2016.csv",
         "label": "USTC-TFC2016 — 1 000 sessions (500 benignes + 500 malwares reels)",
@@ -565,18 +557,6 @@ def _render_performance(preds, probas, y_true, ds_info):
                 f"**Familles de malware differentes** : ce dataset contient "
                 f"*{ds_info.get('attacks', 'inconnu')}*. Ces malwares datent de 2016 "
                 f"et ont des patterns reseau differents des malwares darknet de 2020."
-            )
-        elif "hikari" in ds_file:
-            if n_feat < 27:
-                reasons.append(
-                    f"**Features incompletes** : seules {n_feat}/27 features sont disponibles. "
-                    f"Les 8 features manquantes (TTL, TCP headers, etc.) ne sont pas extractibles "
-                    f"depuis le format CICFlowMeter et sont mises a zero."
-                )
-            reasons.append(
-                f"**Types d'attaques differents** : le modele a ete entraine sur du trafic darknet "
-                f"(trojans, ransomware, botnets). Ce dataset contient des attaques de type "
-                f"*{ds_info.get('attacks', 'inconnu')}*, qui ont des patterns reseau differents."
             )
         else:
             if n_feat < 27:
