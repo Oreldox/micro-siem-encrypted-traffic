@@ -93,6 +93,16 @@ def render(models, session_features, config):
         f"Features : {ds['features']}/27"
     )
 
+    # === Seuil de detection ===
+    threshold = st.slider(
+        "Seuil de detection",
+        min_value=0.1, max_value=0.9, value=config["threshold"], step=0.05,
+        help="Probabilite au-dessus de laquelle une session est classee comme malveillante. "
+             "Entrainement = 0.5. Pour les datasets externes, un seuil plus bas (0.3) "
+             "peut ameliorer la detection.",
+    )
+    config = {**config, "threshold": threshold}
+
     # === Encart differences par rapport a l'entrainement ===
     _render_training_diff(ds, config)
 
