@@ -73,13 +73,6 @@ def inject_css():
         font-size: 0.9rem;
         color: #cbd5e1;
     }
-    /* Navigation section separators (items 6 and 11 = start of 2nd and 3rd group) */
-    div[data-testid="stSidebar"] div[role="radiogroup"] label:nth-child(6),
-    div[data-testid="stSidebar"] div[role="radiogroup"] label:nth-child(11) {
-        margin-top: 16px;
-        padding-top: 12px;
-        border-top: 1px solid #334155;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -159,6 +152,60 @@ def load_demo_data():
     return True
 
 
+def load_default_dataset():
+    """Charge le dataset par defaut (mix realiste) dans session_state."""
+    from src.models import load_models, load_feature_mapping, SESSION_MAPPING_PATH
+
+    app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    path = os.path.join(app_dir, "data", "external_test_sample.csv")
+
+    if not os.path.exists(path):
+        return False
+
+    df = pd.read_csv(path, low_memory=False)
+    st.session_state["data"] = df
+    st.session_state["data_source"] = "Mix realiste — 1 000 sessions (500 benin + 500 malveillant)"
+    st.session_state["feature_quality"] = {"total": 27, "available": 27}
+    st.session_state["_loaded_dataset"] = "external_test_sample.csv"
+
+    models, _ = load_models()
+    session_features = load_feature_mapping(SESSION_MAPPING_PATH)
+
+    if "rf_session" in models:
+        X = np.nan_to_num(df[session_features].values.astype(float), nan=0.0)
+
+        probas_rf = models["rf_session"].predict_proba(X)[:, 1]
+        preds = (probas_rf >= 0.5).astype(int)
+
+        st.session_state["probas"] = probas_rf
+        st.session_state["preds"] = preds
+        st.session_state["preds_rf"] = preds
+        st.session_state["if_preds"] = None
+        st.session_state["if_scores"] = None
+        st.session_state["X"] = X
+
+        probas_xgb = None
+        if "xgboost" in models:
+            try:
+                probas_xgb = models["xgboost"].predict_proba(X)[:, 1]
+                st.session_state["probas_xgb"] = probas_xgb
+            except Exception:
+                pass
+
+        from src.confidence import compute_confidence_scores
+        confidence = compute_confidence_scores(
+            probas_rf, probas_xgb=probas_xgb,
+            feature_quality=st.session_state.get("feature_quality")
+        )
+        st.session_state["confidence"] = confidence
+        st.session_state["recommended_threshold"] = 0.5
+
+        if "label" in df.columns:
+            st.session_state["y_true"] = df["label"].values.astype(int)
+
+    return True
+
+
 def is_demo_data():
     """True si les donnees chargees sont la demo labelisee."""
     return st.session_state.get("data_source", "").startswith("Demo")
@@ -170,20 +217,15 @@ def has_labels():
 
 
 def require_data(page_description=""):
-    """Verifie que des donnees sont chargees. Si non, affiche un bouton demo.
+    """Verifie que des donnees sont chargees. Si non, charge automatiquement.
 
     Retourne True si des donnees sont disponibles, False sinon.
     """
     if "probas" in st.session_state and "data" in st.session_state:
         return True
 
-    st.markdown("---")
-    st.markdown(f"### Aucune donnee chargee")
-    if page_description:
-        st.markdown(page_description)
-    st.markdown("Chargez les donnees de demonstration pour explorer cette page :")
-    if st.button("Charger les donnees de demo (5 000 sessions)", type="primary",
-                  use_container_width=True, key=f"demo_btn_{page_description[:20]}"):
-        if load_demo_data():
-            st.rerun()
+    # Auto-load default dataset
+    if load_default_dataset():
+        st.rerun()
+    st.info("Chargement des donnees en cours...")
     return False

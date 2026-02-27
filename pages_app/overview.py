@@ -1,5 +1,5 @@
 """
-Page 1 : Accueil — Choix de dataset, classification, metriques, alertes.
+Page 1 : Accueil — Classification automatique, metriques, alertes.
 """
 
 import os
@@ -8,97 +8,65 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 
-from src.ui_components import explain, render_metric_card, load_demo_data
-from src.models import DEMO_DATA_PATH
+from src.ui_components import explain, render_metric_card
 
 APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+DATASETS = {
+    "Mix realiste (500 benin + 500 malveillant)": (
+        "external_test_sample.csv",
+        "Mix realiste — 1 000 sessions (500 benin + 500 malveillant)",
+    ),
+    "Dataset complet (5 000 sessions)": (
+        "demo_sample.csv",
+        "Dataset complet — 5 000 sessions CIC-Darknet2020",
+    ),
+    "Malwares uniquement (1 000)": (
+        "sample_malware_only.csv",
+        "Malwares uniquement — 1 000 sessions",
+    ),
+    "Trafic benin uniquement (1 000)": (
+        "sample_benign_only.csv",
+        "Trafic benin — 1 000 sessions",
+    ),
+}
+
 
 def render(models, session_features, config):
-    # Si aucune donnee, afficher la landing page
+    # Auto-load default dataset if nothing is loaded
     if "data" not in st.session_state or "probas" not in st.session_state:
-        _render_landing_page()
+        _load_csv_dataset(
+            "external_test_sample.csv",
+            "Mix realiste — 1 000 sessions (500 benin + 500 malveillant)",
+        )
+        st.session_state["_loaded_dataset"] = "external_test_sample.csv"
+
+    if "data" not in st.session_state or "probas" not in st.session_state:
+        st.error("Impossible de charger le dataset par defaut.")
         return
 
-    # Sinon, afficher les resultats d'analyse
+    # Header + selecteur de dataset
+    col_title, col_select = st.columns([3, 3])
+    with col_title:
+        st.markdown("## Resultats d'analyse")
+    with col_select:
+        selected = st.selectbox(
+            "Dataset d'exemple",
+            list(DATASETS.keys()),
+            key="dataset_selector",
+        )
+        fname, label = DATASETS[selected]
+        if st.session_state.get("_loaded_dataset") != fname:
+            _load_csv_dataset(fname, label)
+            st.session_state["_loaded_dataset"] = fname
+            st.rerun()
+
+    st.caption(f"Source : {st.session_state.get('data_source', '')}")
+
+    # Resultats d'analyse
     _render_analysis(models, session_features, config)
 
-
-# =============================================================================
-# LANDING PAGE
-# =============================================================================
-
-def _render_landing_page():
-    """Page d'accueil — choix du dataset d'exemple."""
-
-    st.markdown("""
-    <div class="hero-banner">
-        <h1>Analyse Trafic Chiffre</h1>
-        <p>Classification du trafic reseau chiffre par Machine Learning.
-        Detectez C2, exfiltration et ransomware <strong>sans dechiffrer le contenu</strong>.</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("### Choisissez un dataset d'exemple")
-    st.caption(
-        "Ces donnees proviennent du jeu de test CIC-Darknet2020 — "
-        "le modele ne les a jamais vues pendant l'entrainement."
-    )
-
-    # --- Grille 2x2 ---
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("""
-        <div class="metric-card">
-            <h3>Mix equilibre</h3>
-            <div class="value blue" style="font-size:1.2rem">1 000 sessions</div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.caption("500 sessions benignes + 500 malveillantes. Ideal pour evaluer precision et recall.")
-        if st.button("Charger", type="primary", use_container_width=True, key="load_mix"):
-            if _load_csv_dataset("external_test_sample.csv", "Mix equilibre (1 000 sessions)"):
-                st.rerun()
-
-    with col2:
-        st.markdown("""
-        <div class="metric-card">
-            <h3>Dataset complet</h3>
-            <div class="value green" style="font-size:1.2rem">5 000 sessions</div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.caption("Echantillon large du dataset CIC-Darknet2020 avec distribution reelle.")
-        if st.button("Charger", type="primary", use_container_width=True, key="load_demo"):
-            if load_demo_data():
-                st.rerun()
-
-    col3, col4 = st.columns(2)
-
-    with col3:
-        st.markdown("""
-        <div class="metric-card">
-            <h3>Malwares uniquement</h3>
-            <div class="value red" style="font-size:1.2rem">1 000 sessions</div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.caption("Uniquement du trafic malveillant. Testez la capacite de detection du modele.")
-        if st.button("Charger", type="primary", use_container_width=True, key="load_malware"):
-            if _load_csv_dataset("sample_malware_only.csv", "Malwares uniquement (1 000 sessions)"):
-                st.rerun()
-
-    with col4:
-        st.markdown("""
-        <div class="metric-card">
-            <h3>Trafic benin uniquement</h3>
-            <div class="value yellow" style="font-size:1.2rem">1 000 sessions</div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.caption("Uniquement du trafic normal. Verifiez le taux de faux positifs du modele.")
-        if st.button("Charger", type="primary", use_container_width=True, key="load_benign"):
-            if _load_csv_dataset("sample_benign_only.csv", "Trafic benin (1 000 sessions)"):
-                st.rerun()
-
-    # --- Import custom (secondaire) ---
+    # Import de donnees custom (secondaire)
     st.markdown("---")
     with st.expander("Importer vos propres donnees", expanded=False):
         st.caption("PCAP/PCAPNG, CSV (Wireshark, CICFlowMeter, tshark), Excel, Zeek conn.log")
@@ -108,8 +76,8 @@ def _render_landing_page():
             label_visibility="collapsed",
         )
         if uploaded is not None:
-            success = _process_upload(uploaded)
-            if success:
+            if _process_upload(uploaded):
+                st.session_state["_loaded_dataset"] = "__custom__"
                 st.rerun()
 
 
@@ -382,21 +350,6 @@ def _render_analysis(models, session_features, config):
     """Affiche les resultats d'analyse."""
 
     df = st.session_state["data"]
-    source = st.session_state.get("data_source", "")
-
-    # Header compact
-    col_title, col_source, col_new = st.columns([3, 4, 1])
-    with col_title:
-        st.markdown("## Resultats d'analyse")
-    with col_source:
-        st.caption(f"Source : {source}")
-    with col_new:
-        if st.button("Nouvelle analyse", use_container_width=True):
-            for key in ["data", "data_source", "probas", "preds", "preds_rf",
-                        "if_preds", "if_scores", "X", "y_true", "packet_data",
-                        "packet_source", "umap_embedding", "umap_indices"]:
-                st.session_state.pop(key, None)
-            st.rerun()
 
     # Recalculer les predictions avec le seuil actuel
     if "rf_session" not in models:
