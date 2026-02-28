@@ -66,8 +66,11 @@ def load_feature_mapping(path):
 @st.cache_resource
 def load_shap_explainer(_model):
     """Charge le SHAP TreeExplainer (compatible RF et XGBoost)."""
-    import shap
-    return shap.TreeExplainer(_model)
+    try:
+        import shap
+        return shap.TreeExplainer(_model)
+    except ImportError:
+        return None
 
 
 @st.cache_data

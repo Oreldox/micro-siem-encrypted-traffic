@@ -41,19 +41,9 @@ def page_tester():
     render(models, session_features, config)
 
 
-def page_detail():
-    from pages_app.detail import render
-    render(models, session_features, config)
-
-
 def page_methodologie():
     from pages_app.methodology import render
     render()
-
-
-def page_shap():
-    from pages_app.shap_global import render
-    render(models, session_features, config)
 
 
 def page_config():
