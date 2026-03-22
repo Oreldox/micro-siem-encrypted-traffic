@@ -13,12 +13,14 @@ st.set_page_config(
 )
 
 from src.ui_components import inject_css
-from src.models import load_models, load_feature_mapping, SESSION_MAPPING_PATH
+from src.models import (load_models, load_feature_mapping,
+                        SESSION_MAPPING_PATH, PACKET_MAPPING_PATH)
 
 inject_css()
 
 models, model_info = load_models()
 session_features = load_feature_mapping(SESSION_MAPPING_PATH)
+packet_features = load_feature_mapping(PACKET_MAPPING_PATH)
 
 if "threshold" not in st.session_state:
     st.session_state["threshold"] = 0.5
@@ -30,6 +32,8 @@ config = {
     "use_if": st.session_state["use_if"],
 }
 
+
+# === Pages ===
 
 def page_accueil():
     from pages_app.overview import render
@@ -43,6 +47,31 @@ def page_tester():
 
 def page_methodologie():
     from pages_app.methodology import render
+    render()
+
+
+def page_stats():
+    from pages_app.stats import render
+    render(models, session_features, config)
+
+
+def page_visualization():
+    from pages_app.visualization import render
+    render(models, session_features, config)
+
+
+def page_detail():
+    from pages_app.detail import render
+    render(models, session_features, config)
+
+
+def page_cascade():
+    from pages_app.cascade import render
+    render(models, session_features, packet_features, config)
+
+
+def page_comparison():
+    from pages_app.comparison import render
     render()
 
 
@@ -61,8 +90,13 @@ pages = {
         st.Page(page_accueil, title="Accueil", icon=":material/home:", default=True),
         st.Page(page_methodologie, title="Methodologie", icon=":material/school:"),
     ],
-    "Tester le modele": [
+    "Analyser": [
         st.Page(page_tester, title="Tester le modele", icon=":material/science:"),
+        st.Page(page_detail, title="Detail d'une session", icon=":material/search:"),
+        st.Page(page_stats, title="Statistiques", icon=":material/bar_chart:"),
+        st.Page(page_visualization, title="Projection 2D", icon=":material/scatter_plot:"),
+        st.Page(page_cascade, title="Mode cascade", icon=":material/layers:"),
+        st.Page(page_comparison, title="Comparer les datasets", icon=":material/compare:"),
     ],
     "Parametres": [
         st.Page(page_config, title="Configuration", icon=":material/settings:"),

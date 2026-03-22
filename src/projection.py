@@ -36,14 +36,20 @@ def compute_projection_embedding(X, max_samples=10000):
         embedding = reducer.fit_transform(X_scaled)
         return embedding, indices, "PCA"
     else:
-        import umap
-        adjusted_neighbors = min(15, n - 1)
-        reducer = umap.UMAP(
-            n_components=2, n_neighbors=adjusted_neighbors, min_dist=0.1,
-            random_state=42, verbose=False
-        )
-        embedding = reducer.fit_transform(X_scaled)
-        return embedding, indices, "UMAP"
+        try:
+            import umap
+            adjusted_neighbors = min(15, n - 1)
+            reducer = umap.UMAP(
+                n_components=2, n_neighbors=adjusted_neighbors, min_dist=0.1,
+                random_state=42, verbose=False
+            )
+            embedding = reducer.fit_transform(X_scaled)
+            return embedding, indices, "UMAP"
+        except ImportError:
+            from sklearn.decomposition import PCA
+            reducer = PCA(n_components=min(2, X_scaled.shape[1]), random_state=42)
+            embedding = reducer.fit_transform(X_scaled)
+            return embedding, indices, "PCA"
 
 
 def compute_umap_embedding(X, n_neighbors=15, min_dist=0.1, max_samples=10000):

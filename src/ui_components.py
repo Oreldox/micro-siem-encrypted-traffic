@@ -73,6 +73,74 @@ def inject_css():
         font-size: 0.9rem;
         color: #cbd5e1;
     }
+    .quality-bar-container {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin: 8px 0 16px 0;
+    }
+    .quality-bar-track {
+        background: #334155;
+        border-radius: 4px;
+        height: 12px;
+        width: 100%;
+        overflow: hidden;
+        margin-top: 6px;
+    }
+    .quality-bar-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.3s ease;
+    }
+    .cta-card {
+        background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 24px;
+        text-align: center;
+        margin-bottom: 12px;
+        transition: border-color 0.2s;
+    }
+    .cta-card:hover {
+        border-color: #3b82f6;
+    }
+    .cta-card h3 {
+        color: #e2e8f0;
+        font-size: 1.1rem;
+        margin-bottom: 8px;
+    }
+    .cta-card p {
+        color: #94a3b8;
+        font-size: 0.85rem;
+        margin-bottom: 0;
+    }
+    .drift-indicator {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    .drift-ok { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+    .drift-warn { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+    .drift-bad { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+    .session-detail-box {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 20px;
+        margin: 12px 0;
+    }
+    .pedagogy-box {
+        background: rgba(139, 92, 246, 0.08);
+        border-left: 3px solid #8b5cf6;
+        border-radius: 0 8px 8px 0;
+        padding: 12px 16px;
+        margin: 8px 0 16px 0;
+        font-size: 0.9rem;
+        color: #cbd5e1;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -229,3 +297,46 @@ def require_data(page_description=""):
         st.rerun()
     st.info("Chargement des donnees en cours...")
     return False
+
+
+def render_quality_bar(available, total=27):
+    """Affiche une barre de qualite des features avec code couleur."""
+    pct = available / total * 100
+    if pct >= 90:
+        color = "#10b981"
+        label = "Excellente"
+    elif pct >= 70:
+        color = "#3b82f6"
+        label = "Bonne"
+    elif pct >= 50:
+        color = "#f59e0b"
+        label = "Partielle"
+    else:
+        color = "#ef4444"
+        label = "Insuffisante"
+
+    st.markdown(f"""
+    <div class="quality-bar-container">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="color:#94a3b8; font-size:0.85rem;">Qualite des features</span>
+            <span style="color:{color}; font-weight:700; font-size:0.9rem;">
+                {available}/{total} — {label}
+            </span>
+        </div>
+        <div class="quality-bar-track">
+            <div class="quality-bar-fill" style="width:{pct}%; background:{color};"></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_pedagogy(text):
+    """Affiche un encart pedagogique (violet)."""
+    st.markdown(f'<div class="pedagogy-box">{text}</div>', unsafe_allow_html=True)
+
+
+def save_comparison_result(dataset_name, metrics):
+    """Sauvegarde les resultats d'un dataset dans l'historique de comparaison."""
+    if "comparison_history" not in st.session_state:
+        st.session_state["comparison_history"] = {}
+    st.session_state["comparison_history"][dataset_name] = metrics

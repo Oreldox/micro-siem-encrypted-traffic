@@ -1,5 +1,5 @@
 """
-Page Accueil — Presentation du projet, modele et dataset d'entrainement.
+Page Accueil — Presentation du projet, modele, dataset, CTA directs.
 """
 
 import os
@@ -7,7 +7,7 @@ import json
 import streamlit as st
 import plotly.graph_objects as go
 
-from src.ui_components import inject_css, explain
+from src.ui_components import inject_css, explain, render_metric_card, load_demo_data
 
 APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -29,10 +29,48 @@ def render():
         <h1>Analyse de Trafic Chiffre par Machine Learning</h1>
         <p>
             Classification automatique de sessions reseau chiffrees
-            (benignes vs malveillantes) a l'aide d'un modele <strong>Random Forest</strong>.
+            (benignes vs malveillantes) a l'aide d'un modele <strong>Random Forest</strong>
+            entraine sur 488 524 sessions — sans dechiffrer le contenu.
         </p>
     </div>
     """, unsafe_allow_html=True)
+
+    # === CTA — Acces rapide ===
+    st.subheader("Commencer")
+
+    col_cta1, col_cta2, col_cta3 = st.columns(3)
+
+    with col_cta1:
+        st.markdown("""
+        <div class="cta-card">
+            <h3>Essayer avec un dataset de demo</h3>
+            <p>5 000 sessions CIC-Darknet2020 pre-chargees, resultats instantanes</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Lancer la demo", use_container_width=True, type="primary"):
+            load_demo_data()
+            st.session_state["_loaded_dataset"] = "demo_sample.csv"
+            st.success("Donnees de demo chargees. Ouvrez **Tester le modele** dans le menu.")
+
+    with col_cta2:
+        st.markdown("""
+        <div class="cta-card">
+            <h3>Tester sur un autre dataset</h3>
+            <p>USTC-TFC2016, dataset custom, ou importez vos propres donnees</p>
+        </div>
+        """, unsafe_allow_html=True)
+        st.info("Ouvrez **Tester le modele** dans le menu a gauche.")
+
+    with col_cta3:
+        st.markdown("""
+        <div class="cta-card">
+            <h3>Comprendre la methodologie</h3>
+            <p>Pipeline de selection des features : 280 colonnes vers 27 features</p>
+        </div>
+        """, unsafe_allow_html=True)
+        st.info("Ouvrez **Methodologie** dans le menu a gauche.")
+
+    st.markdown("---")
 
     # === Le modele ===
     st.header("Le modele")
@@ -56,6 +94,53 @@ def render():
         "Il est valide par un <strong>XGBoost</strong> et un <strong>Isolation Forest</strong> "
         "en complement."
     )
+
+    # === Comment ca marche ===
+    st.header("Comment ca marche ?")
+
+    col_p1, col_p2, col_p3, col_p4 = st.columns(4)
+    with col_p1:
+        st.markdown("""
+        <div class="metric-card">
+            <h3>1. Import</h3>
+            <div style="color:#3b82f6; font-size:1.5rem; margin:8px 0;">PCAP / CSV</div>
+            <p style="color:#94a3b8; font-size:0.8rem;">
+                Importez un fichier PCAP, CSV, Excel ou selectionnez un dataset inclus
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    with col_p2:
+        st.markdown("""
+        <div class="metric-card">
+            <h3>2. Extraction</h3>
+            <div style="color:#f59e0b; font-size:1.5rem; margin:8px 0;">27 features</div>
+            <p style="color:#94a3b8; font-size:0.8rem;">
+                Les metadonnees reseau sont extraites : timing, volume, TCP, TTL, ratios IP
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    with col_p3:
+        st.markdown("""
+        <div class="metric-card">
+            <h3>3. Classification</h3>
+            <div style="color:#10b981; font-size:1.5rem; margin:8px 0;">ML</div>
+            <p style="color:#94a3b8; font-size:0.8rem;">
+                Le Random Forest predit si chaque session est benigne ou malveillante
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    with col_p4:
+        st.markdown("""
+        <div class="metric-card">
+            <h3>4. Analyse</h3>
+            <div style="color:#ef4444; font-size:1.5rem; margin:8px 0;">Resultats</div>
+            <p style="color:#94a3b8; font-size:0.8rem;">
+                Visualisez les alertes, explorez les sessions suspectes, exportez un rapport
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("---")
 
     # === Dataset d'entrainement ===
     st.header("Dataset d'entrainement — CIC-Darknet2020")
@@ -109,7 +194,7 @@ def render():
         )
         st.plotly_chart(fig, use_container_width=True)
 
-    # === Pipeline de features ===
+    # === Selection des features ===
     st.header("Selection des features")
 
     pipeline = stats["pipeline"]
@@ -122,9 +207,9 @@ def render():
         _card(f"Pearson < {pipeline['pearson_threshold']}", str(pipeline["final_features"]), "green")
 
     explain(
-        f"<strong>280 colonnes</strong> → filtre Cohen's d (seuil {pipeline['cohens_d_threshold']}) "
-        f"→ <strong>{pipeline['cohens_d_candidates']} candidates</strong> → "
-        f"filtre Pearson (seuil {pipeline['pearson_threshold']}) → "
+        f"<strong>280 colonnes</strong> &rarr; filtre Cohen's d (seuil {pipeline['cohens_d_threshold']}) "
+        f"&rarr; <strong>{pipeline['cohens_d_candidates']} candidates</strong> &rarr; "
+        f"filtre Pearson (seuil {pipeline['pearson_threshold']}) &rarr; "
         f"<strong>{pipeline['final_features']} features finales</strong>. "
         "Le Cohen's d mesure la taille d'effet entre benin et malveillant. "
         "Le filtre Pearson elimine les features redondantes."
@@ -148,13 +233,46 @@ def render():
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # === CTA ===
+    # === Limites connues ===
     st.markdown("---")
-    st.markdown(
-        "### Tester le modele sur un dataset\n"
-        "Rendez-vous sur la page **Tester le modele** dans le menu a gauche "
-        "pour evaluer les performances du modele sur differents datasets "
-        "de trafic chiffre."
+    st.header("Limites de generalisation")
+    explain(
+        "Ce modele est specialise sur le trafic du dataset <strong>CIC-Darknet2020</strong>. "
+        "Il ne generalise pas automatiquement a d'autres types de malwares ou d'autres methodes "
+        "d'extraction de features. Voici les facteurs qui influencent les performances sur un "
+        "nouveau dataset :"
+    )
+
+    col_l1, col_l2, col_l3 = st.columns(3)
+    with col_l1:
+        st.markdown("""
+        **Distribution des features**
+
+        Les 27 features doivent avoir des distributions
+        statistiques similaires a celles vues a l'entrainement.
+        Un dataset extrait differemment peut avoir des valeurs
+        dans des plages differentes.
+        """)
+    with col_l2:
+        st.markdown("""
+        **Familles de malware**
+
+        Le modele connait 25 familles de malware (trojans,
+        ransomware, botnets). Il peut ne pas detecter des
+        familles inconnues ou des attaques zero-day.
+        """)
+    with col_l3:
+        st.markdown("""
+        **Epoque des donnees**
+
+        Les patterns reseau evoluent. Un malware de 2024
+        peut se comporter differemment d'un malware de 2020
+        vu a l'entrainement.
+        """)
+
+    explain(
+        "La page <strong>Tester le modele</strong> inclut un diagnostic automatique de compatibilite "
+        "qui compare les distributions de vos donnees a celles de l'entrainement."
     )
 
 
